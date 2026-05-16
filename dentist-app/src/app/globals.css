@@ -1,0 +1,117 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: #f8f9fa;
+  --color-foreground: #191c1d;
+
+  --color-primary: #0059bb;
+  --color-primary-container: #0070ea;
+  --color-on-primary: #ffffff;
+
+  --color-secondary: #00677e;
+  --color-secondary-container: #5bd8fe;
+  --color-on-secondary: #ffffff;
+
+  --color-tertiary: #9e3d00;
+  --color-tertiary-container: #c64f00;
+  --color-on-tertiary: #ffffff;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  --color-surface: #f8f9fa;
+  --color-on-surface: #191c1d;
+  --color-surface-bright: #f8f9fa;
+  --color-surface-dim: #d9dadb;
+  --color-surface-variant: #e1e3e4;
+  --color-on-surface-variant: #414754;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f5;
+  --color-surface-container: #edeeef;
+  --color-surface-container-high: #e7e8e9;
+  --color-surface-container-highest: #e1e3e4;
+
+  --color-inverse-surface: #2e3132;
+  --color-inverse-on-surface: #f0f1f2;
+  --color-inverse-primary: #adc7ff;
+  --color-surface-tint: #005bc0;
+
+  --color-primary-gradient-start: #0059bb;
+  --color-primary-gradient-end: #0070ea;
+
+  --color-outline: #717786;
+  --color-outline-variant: #c1c6d7;
+
+  --color-primary-fixed: #d8e2ff;
+  --color-primary-fixed-dim: #adc7ff;
+  --color-on-primary-fixed: #001a41;
+  --color-on-primary-fixed-variant: #004493;
+
+  --color-secondary-fixed: #b5ebff;
+  --color-secondary-fixed-dim: #58d5fb;
+  --color-on-secondary-fixed: #001f28;
+  --color-on-secondary-fixed-variant: #004e60;
+
+  --color-tertiary-fixed: #ffdbcc;
+  --color-tertiary-fixed-dim: #ffb695;
+  --color-on-tertiary-fixed: #351000;
+  --color-on-tertiary-fixed-variant: #7c2e00;
+
+  --color-muted: #edeeef;
+  --color-muted-foreground: #414754;
+  --color-accent: #0059bb;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #ba1a1a;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #c1c6d7;
+  --color-input: #e1e3e4;
+  --color-ring: #0059bb;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #191c1d;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #191c1d;
+
+  --color-sidebar: #f8f9fa;
+  --color-sidebar-foreground: #191c1d;
+  --color-sidebar-primary: #0059bb;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #edeeef;
+  --color-sidebar-accent-foreground: #191c1d;
+  --color-sidebar-border: #c1c6d7;
+  --color-sidebar-ring: #0059bb;
+
+  --color-primary-gradient: linear-gradient(135deg, #0059bb 0%, #0070ea 100%);
+
+  --font-sans: var(--font-inter), "Inter", sans-serif;
+  --font-mono: "ui-monospace", "SFMono-Regular", monospace;
+
+  --font-headline: var(--font-manrope), "Manrope", sans-serif;
+  --font-display: var(--font-manrope), "Manrope", sans-serif;
+  --font-body: var(--font-inter), "Inter", sans-serif;
+  --font-label: var(--font-inter), "Inter", sans-serif;
+
+  --radius: 0.25rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+  --radius-4xl: 1.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-surface text-on-surface font-body;
+  }
+}
