@@ -4,7 +4,7 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -59,6 +59,18 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   const [rescheduleStartTime, setRescheduleStartTime] = useState(initialApt?.start || "09:00")
   const [rescheduleEndTime, setRescheduleEndTime] = useState(initialApt?.end || "10:00")
   const [rescheduleRoom, setRescheduleRoom] = useState(initialApt?.room || "P.01")
+  const [confirmAction, setConfirmAction] = useState<{
+    isOpen: boolean
+    title: string
+    description: string
+    action: () => void
+    variant?: "destructive" | "default"
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    action: () => {},
+  })
 
   if (!apt) {
     return (
@@ -112,25 +124,58 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-2">
             {apt.status === "scheduled" && (
               <Button 
-                onClick={() => setApt({ ...apt, status: "confirmed" })}
+                onClick={() => setConfirmAction({
+                  isOpen: true,
+                  title: "Xác nhận lịch khám",
+                  description: "Bạn có chắc chắn muốn xác nhận lịch khám này? Bệnh nhân sẽ nhận được thông báo xác nhận.",
+                  action: () => { setApt({ ...apt, status: "confirmed" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) }
+                })}
                 className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-sm font-semibold border-transparent"
               >
                 <CheckCircle2 className="size-4" />
                 Xác nhận
               </Button>
             )}
-            <Button 
-              onClick={() => setIsRescheduleOpen(true)}
-              variant="outline" 
-              className="h-9 rounded-xl border-outline-variant/30 text-on-surface-variant gap-1.5 text-sm font-semibold hover:text-primary hover:border-primary/30"
-            >
-              <ArrowRightLeft className="size-4 text-violet-500" />
-              Đổi lịch
-            </Button>
-            <Button variant="outline" className="h-9 rounded-xl border-red-200 text-red-500 gap-1.5 text-sm font-semibold hover:bg-red-50">
-              <Trash2 className="size-4" />
-              Hủy lịch
-            </Button>
+            {apt.status === "confirmed" && (
+              <Button 
+                onClick={() => setConfirmAction({
+                  isOpen: true,
+                  title: "Hoàn thành ca khám",
+                  description: "Đánh dấu ca khám đã hoàn tất? Bạn sẽ không thể thay đổi thông tin hóa đơn sau khi hoàn thành.",
+                  action: () => { setApt({ ...apt, status: "completed" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) }
+                })}
+                className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5 text-sm font-semibold border-transparent"
+              >
+                <BadgeCheck className="size-4" />
+                Hoàn thành
+              </Button>
+            )}
+            {apt.status !== "completed" && apt.status !== "cancelled" && (
+              <Button 
+                onClick={() => setIsRescheduleOpen(true)}
+                variant="outline" 
+                className="h-9 rounded-xl border-outline-variant/30 text-on-surface-variant gap-1.5 text-sm font-semibold hover:text-primary hover:border-primary/30"
+              >
+                <ArrowRightLeft className="size-4 text-violet-500" />
+                Đổi lịch
+              </Button>
+            )}
+            {apt.status !== "completed" && apt.status !== "cancelled" && (
+              <Button 
+                onClick={() => setConfirmAction({
+                  isOpen: true,
+                  title: "Hủy lịch khám",
+                  description: "Bạn có chắc chắn muốn hủy lịch khám này? Hành động này không thể hoàn tác.",
+                  action: () => { setApt({ ...apt, status: "cancelled" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) },
+                  variant: "destructive"
+                })}
+                variant="outline" 
+                className="h-9 rounded-xl border-red-200 text-red-500 gap-1.5 text-sm font-semibold hover:bg-red-50"
+              >
+                <Trash2 className="size-4" />
+                Hủy lịch
+              </Button>
+            )}
           </div>
         </div>
 
@@ -410,6 +455,25 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRescheduleOpen(false)} className="rounded-xl">Hủy</Button>
             <Button onClick={handleReschedule} className="rounded-xl bg-primary text-white hover:bg-primary/90">Xác nhận đổi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmAction.isOpen} onOpenChange={(open) => setConfirmAction(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{confirmAction.title}</DialogTitle>
+            <DialogDescription>{confirmAction.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setConfirmAction(prev => ({ ...prev, isOpen: false }))} className="rounded-xl">Hủy</Button>
+            <Button 
+              onClick={confirmAction.action} 
+              className={cn("rounded-xl text-white", confirmAction.variant === "destructive" ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90")}
+            >
+              Đồng ý
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

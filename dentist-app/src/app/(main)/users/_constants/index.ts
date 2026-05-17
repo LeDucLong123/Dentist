@@ -1,10 +1,10 @@
-import { User2, Stethoscope, Shield } from "lucide-react"
+import { User2, Stethoscope, Shield, Headset } from "lucide-react"
 
-export type Role = "admin" | "doctor" | "patient"
+export type Role = "Quản trị" | "Bác sĩ" | "Bệnh nhân" | "Lễ tân"
 
 export const ROLES = [
   {
-    value: "patient" as Role,
+    value: "Bệnh nhân" as Role,
     label: "Bệnh nhân",
     desc: "Đặt lịch khám & xem hồ sơ",
     icon: User2,
@@ -14,7 +14,7 @@ export const ROLES = [
     activeBg: "bg-teal-50",
   },
   {
-    value: "doctor" as Role,
+    value: "Bác sĩ" as Role,
     label: "Bác sĩ",
     desc: "Quản lý bệnh nhân & lịch hẹn",
     icon: Stethoscope,
@@ -24,7 +24,7 @@ export const ROLES = [
     activeBg: "bg-blue-50",
   },
   {
-    value: "admin" as Role,
+    value: "Quản trị" as Role,
     label: "Quản trị viên",
     desc: "Toàn quyền quản lý hệ thống",
     icon: Shield,
@@ -32,6 +32,16 @@ export const ROLES = [
     iconBg: "bg-purple-100",
     border: "border-purple-300",
     activeBg: "bg-purple-50",
+  },
+  {
+    value: "Lễ tân" as Role,
+    label: "Lễ tân",
+    desc: "Tiếp đón & quản lý lịch hẹn",
+    icon: Headset,
+    accent: "text-amber-700",
+    iconBg: "bg-amber-100",
+    border: "border-amber-300",
+    activeBg: "bg-amber-50",
   },
 ]
 

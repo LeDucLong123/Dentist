@@ -42,7 +42,7 @@ export default function EditUserPage() {
     name: "BS. Julian Pierce",
     phone: "0123 456 789",
     email: "julian.p@clinicalserenity.com",
-    role: "doctor",
+    role: "Bác sĩ",
     specialty: "tiến sĩ",
     newPassword: "",
     confirmPassword: "",
@@ -112,7 +112,10 @@ export default function EditUserPage() {
                   className="mb-4"
                 />
                 <h3 className="font-headline font-bold text-xl text-on-surface">{form.name}</h3>
-                <p className="text-secondary font-medium text-sm mb-4">Bác sĩ nha khoa chuyên khoa I</p>
+                <p className="text-secondary font-medium text-sm mb-4">
+                  {ROLES.find(r => r.value === form.role)?.label}
+                  {form.role === "Bác sĩ" && form.specialty ? ` - ${form.specialty.charAt(0).toUpperCase() + form.specialty.slice(1)}` : ""}
+                </p>
                 <div className="flex gap-2 mb-6">
                   <StatusBadge status="active" />
                   <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-xs font-semibold">
@@ -191,7 +194,7 @@ export default function EditUserPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {form.role === "doctor" && (
+                    {form.role === "Bác sĩ" && (
                       <div className="space-y-1.5">
                         <Label className="text-sm font-semibold text-secondary">Trình độ chuyên môn</Label>
                         <Select value={form.specialty} onValueChange={(v) => v && setForm((p) => ({ ...p, specialty: v }))}>

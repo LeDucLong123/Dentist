@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
-type UserRole = "all" | "Bệnh nhân" | "Bác sĩ" | "Quản trị"
+type UserRole = "all" | "Bệnh nhân" | "Bác sĩ" | "Quản trị" | "Lễ tân"
 type UserStatus = "active" | "locked"
 
 interface User {
@@ -100,12 +100,23 @@ const initialUsers: User[] = [
     lastActive: "Hôm nay, 14:20",
     joinDate: "22 Th09, 2021",
   },
+  {
+    id: "7",
+    name: "Lễ tân Thu Hà",
+    email: "ha.le@clinicalserenity.com",
+    role: "Lễ tân",
+    status: "active",
+    avatar: "",
+    lastActive: "Hôm nay, 08:00",
+    joinDate: "05 Th05, 2023",
+  },
 ]
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   "Bác sĩ":    { bg: "bg-blue-50 border border-blue-200",    text: "text-blue-700",    dot: "bg-blue-400"    },
   "Bệnh nhân": { bg: "bg-emerald-50 border border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-400" },
   "Quản trị":  { bg: "bg-violet-50 border border-violet-200",  text: "text-violet-700",  dot: "bg-violet-400"  },
+  "Lễ tân":    { bg: "bg-amber-50 border border-amber-200",    text: "text-amber-700",   dot: "bg-amber-400"   },
 }
 
 const AVATAR_GRADIENTS = [
@@ -123,7 +134,7 @@ function getInitials(name: string) {
 }
 
 const SORT_OPTIONS = ["Tên (A-Z)", "Vai trò", "Hoạt động gần nhất"]
-const ROLE_FILTERS: UserRole[] = ["all", "Bác sĩ", "Bệnh nhân", "Quản trị"]
+const ROLE_FILTERS: UserRole[] = ["all", "Bác sĩ", "Bệnh nhân", "Quản trị", "Lễ tân"]
 
 export default function UserListPage() {
   const [users, setUsers] = useState<User[]>(initialUsers)

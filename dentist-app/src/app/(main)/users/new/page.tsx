@@ -48,7 +48,7 @@ export default function AddUserPage() {
     name: "",
     email: "",
     phone: "",
-    role: "patient",
+    role: "Bệnh nhân",
     specialty: "cử nhân",
     password: "",
     confirmPassword: "",
@@ -67,7 +67,7 @@ export default function AddUserPage() {
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
     
-    if (form.role === "patient") {
+    if (form.role === "Bệnh nhân") {
       if (!form.name.trim()) newErrors.name = "Họ và tên là bắt buộc."
       if (!form.email.trim()) {
         newErrors.email = "Email là bắt buộc."
@@ -183,7 +183,7 @@ export default function AddUserPage() {
                   </h2>
                   <p className="text-xs text-on-surface-variant mt-1 ml-9">Chọn vai trò phù hợp với người dùng</p>
                 </div>
-                <div className="p-5 grid grid-cols-3 gap-3">
+                <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {ROLES.map((r) => {
                     const Icon = r.icon
                     const active = form.role === r.value
@@ -216,7 +216,7 @@ export default function AddUserPage() {
               </div>
 
               {/* CONDITIONAL INFO BLOCKS */}
-              {form.role === "patient" ? (
+              {form.role === "Bệnh nhân" ? (
                 <>
                   {/* BASIC INFO */}
                   <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
@@ -334,7 +334,7 @@ export default function AddUserPage() {
                         <span className="p-1.5 bg-secondary/10 rounded-lg"><UserRound className="size-4 text-secondary" /></span>
                         Liên kết người dùng
                       </h2>
-                      <p className="text-xs text-on-surface-variant mt-1 ml-9">Chọn tài khoản đã có trên hệ thống để cấp quyền {form.role === "doctor" ? "bác sĩ" : "quản trị viên"}</p>
+                      <p className="text-xs text-on-surface-variant mt-1 ml-9">Chọn tài khoản đã có trên hệ thống để cấp quyền {form.role === "Bác sĩ" ? "bác sĩ" : form.role === "Quản trị" ? "quản trị viên" : "lễ tân"}</p>
                     </div>
                     <div className="p-6 space-y-5">
                       <div className="space-y-1.5 flex flex-col">
@@ -396,7 +396,7 @@ export default function AddUserPage() {
                         <FormError msg={errors.linkedUserId || ""} />
                       </div>
 
-                      {form.role === "doctor" && (
+                      {form.role === "Bác sĩ" && (
                         <div className="space-y-1.5">
                           <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Trình độ chuyên môn</Label>
                           <Select value={form.specialty} onValueChange={(v) => v && setForm((p) => ({ ...p, specialty: v }))}>
@@ -452,7 +452,7 @@ export default function AddUserPage() {
               {/* Security card */}
               <SecurityCard
                 items={[
-                  { text: form.role === "patient" ? "Tài khoản yêu cầu đổi mật khẩu sau lần đăng nhập đầu tiên." : "Người dùng sẽ sử dụng mật khẩu hiện tại để đăng nhập." },
+                  { text: form.role === "Bệnh nhân" ? "Tài khoản yêu cầu đổi mật khẩu sau lần đăng nhập đầu tiên." : "Người dùng sẽ sử dụng mật khẩu hiện tại để đăng nhập." },
                   { text: "Quyền hạn được giới hạn theo vai trò công việc." },
                 ]}
               />

@@ -3,16 +3,16 @@
 
 export const APPOINTMENTS = [
   { id: "LK001", patient: "Nguyễn Văn A",  doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-16", start: "08:00", end: "09:00", status: "confirmed" },
-  { id: "LK002", patient: "Trần Thị B",    doctor: "BS. Emily Thorne",    service: "Chỉnh nha mắc cài",     date: "2026-05-16", start: "09:00", end: "10:30", status: "scheduled" },
-  { id: "LK003", patient: "Lê Văn C",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-16", start: "09:15", end: "10:15", status: "rescheduled" },
-  { id: "LK009", patient: "Hoàng Thị K",   doctor: "BS. Phạm Quốc Dũng", service: "Bọc răng sứ Zirconia",  date: "2026-05-16", start: "09:30", end: "10:30", status: "confirmed" },
+  { id: "LK002", patient: "Trần Thị B",    doctor: "BS. Emily Thorne",    service: "Chỉnh nha mắc cài",     date: "2026-05-17", start: "09:00", end: "10:30", status: "scheduled" },
+  { id: "LK003", patient: "Lê Văn C",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-17", start: "09:15", end: "10:15", status: "rescheduled" },
+  { id: "LK009", patient: "Hoàng Thị K",   doctor: "BS. Phạm Quốc Dũng", service: "Bọc răng sứ Zirconia",  date: "2026-05-17", start: "09:30", end: "10:30", status: "confirmed" },
   { id: "LK004", patient: "Phạm Thị D",    doctor: "BS. Phạm Quốc Dũng", service: "Khám tổng quát",         date: "2026-05-16", start: "13:00", end: "14:00", status: "completed" },
-  { id: "LK011", patient: "Đỗ Văn M",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-16", start: "13:30", end: "14:30", status: "scheduled" },
+  { id: "LK011", patient: "Đỗ Văn M",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-17", start: "13:30", end: "14:30", status: "scheduled" },
   { id: "LK005", patient: "Hoàng Minh E",  doctor: "BS. Julian Pierce",   service: "Nhổ răng khôn",          date: "2026-05-17", start: "08:30", end: "09:30", status: "confirmed" },
   { id: "LK006", patient: "Vũ Thị F",      doctor: "BS. Emily Thorne",    service: "Bọc răng sứ",            date: "2026-05-17", start: "10:00", end: "11:00", status: "scheduled" },
   { id: "LK007", patient: "Đặng Văn G",    doctor: "BS. Phạm Quốc Dũng", service: "Tẩy trắng răng",        date: "2026-05-19", start: "09:00", end: "09:30", status: "confirmed" },
   { id: "LK008", patient: "Bùi Thị H",     doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-21", start: "11:00", end: "12:00", status: "scheduled" },
-  { id: "LK010", patient: "Lý Văn X",      doctor: "BS. Nguyễn Thị Lan",  service: "Nhổ răng khôn",          date: "2026-05-16", start: "15:00", end: "16:00", status: "cancelled" },
+  { id: "LK010", patient: "Lý Văn X",      doctor: "BS. Nguyễn Thị Lan",  service: "Nhổ răng khôn",          date: "2026-05-17", start: "15:00", end: "16:00", status: "cancelled" },
 ]
 
 // ─── Extended detail data ─────────────────────────────────────────────────────
