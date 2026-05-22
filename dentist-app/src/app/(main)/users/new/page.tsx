@@ -4,9 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, Save, CheckCircle2, AlertCircle,
+  ArrowLeft, Save, CheckCircle2,
   Lock, LockKeyhole, UserRound, BadgeCheck,
-  Shield, Stethoscope, User2, ChevronsUpDown, Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,11 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PasswordInput } from "@/components/password-input"
 import { AvatarUpload } from "@/components/avatar-upload"
 import { SecurityCard } from "@/components/security-card"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
 import { FormError } from "../_components/form-error"
-import { ROLES, MOCK_EXISTING_USERS, Role } from "../_constants"
+import { ROLES, Role } from "../_constants"
 
 interface FormState {
   name: string
@@ -29,7 +26,6 @@ interface FormState {
   specialty: string
   password: string
   confirmPassword: string
-  linkedUserId: string
 }
 
 interface FormErrors {
@@ -38,7 +34,6 @@ interface FormErrors {
   phone?: string
   password?: string
   confirmPassword?: string
-  linkedUserId?: string
 }
 
 
@@ -52,12 +47,10 @@ export default function AddUserPage() {
     specialty: "cử nhân",
     password: "",
     confirmPassword: "",
-    linkedUserId: "",
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [comboboxOpen, setComboboxOpen] = useState(false)
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -67,28 +60,22 @@ export default function AddUserPage() {
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
     
-    if (form.role === "Bệnh nhân") {
-      if (!form.name.trim()) newErrors.name = "Họ và tên là bắt buộc."
-      if (!form.email.trim()) {
-        newErrors.email = "Email là bắt buộc."
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        newErrors.email = "Email không hợp lệ."
-      }
-      if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc."
-      if (!form.password) {
-        newErrors.password = "Mật khẩu là bắt buộc."
-      } else if (form.password.length < 6) {
-        newErrors.password = "Mật khẩu phải ít nhất 6 ký tự."
-      }
-      if (!form.confirmPassword) {
-        newErrors.confirmPassword = "Vui lòng xác nhận mật khẩu."
-      } else if (form.password !== form.confirmPassword) {
-        newErrors.confirmPassword = "Mật khẩu xác nhận không khớp."
-      }
-    } else {
-      if (!form.linkedUserId) {
-        newErrors.linkedUserId = "Vui lòng chọn người dùng để liên kết."
-      }
+    if (!form.name.trim()) newErrors.name = "Họ và tên là bắt buộc."
+    if (!form.email.trim()) {
+      newErrors.email = "Email là bắt buộc."
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Email không hợp lệ."
+    }
+    if (!form.phone.trim()) newErrors.phone = "Số điện thoại là bắt buộc."
+    if (!form.password) {
+      newErrors.password = "Mật khẩu là bắt buộc."
+    } else if (form.password.length < 6) {
+      newErrors.password = "Mật khẩu phải ít nhất 6 ký tự."
+    }
+    if (!form.confirmPassword) {
+      newErrors.confirmPassword = "Vui lòng xác nhận mật khẩu."
+    } else if (form.password !== form.confirmPassword) {
+      newErrors.confirmPassword = "Mật khẩu xác nhận không khớp."
     }
     
     setErrors(newErrors)
@@ -191,7 +178,7 @@ export default function AddUserPage() {
                       <button
                         key={r.value}
                         type="button"
-                        onClick={() => setForm((p) => ({ ...p, role: r.value, linkedUserId: "", name: "", email: "", phone: "", password: "", confirmPassword: "" }))}
+                        onClick={() => setForm((p) => ({ ...p, role: r.value }))}
                         className={cn(
                           "relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all duration-200 text-left w-full cursor-pointer",
                           active
@@ -215,207 +202,129 @@ export default function AddUserPage() {
                 </div>
               </div>
 
-              {/* CONDITIONAL INFO BLOCKS */}
-              {form.role === "Bệnh nhân" ? (
-                <>
-                  {/* BASIC INFO */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
-                    <div className="px-6 pt-5 pb-4 border-b border-surface-container">
-                      <h2 className="font-headline font-bold text-base text-blue-900 flex items-center gap-2">
-                        <span className="p-1.5 bg-secondary/10 rounded-lg"><UserRound className="size-4 text-secondary" /></span>
-                        Thông tin cá nhân
-                      </h2>
-                      <p className="text-xs text-on-surface-variant mt-1 ml-9">Họ tên, email và số liên lạc</p>
-                    </div>
-                    <div className="p-6 space-y-5">
-                      {/* Name */}
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
-                          Họ và tên <span className="text-error normal-case">*</span>
-                        </Label>
-                        <Input
-                          className={inputClass("name")}
-                          placeholder="Ví dụ: Nguyễn Văn A"
-                          value={form.name}
-                          onChange={set("name")}
-                        />
-                        <FormError msg={errors.name || ""} />
-                      </div>
+              {/* BASIC INFO */}
+              <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 border-b border-surface-container">
+                  <h2 className="font-headline font-bold text-base text-blue-900 flex items-center gap-2">
+                    <span className="p-1.5 bg-secondary/10 rounded-lg"><UserRound className="size-4 text-secondary" /></span>
+                    Thông tin cá nhân
+                  </h2>
+                  <p className="text-xs text-on-surface-variant mt-1 ml-9">Họ tên, email và số liên lạc</p>
+                </div>
+                <div className="p-6 space-y-5">
+                  {/* Name */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
+                      Họ và tên <span className="text-error normal-case">*</span>
+                    </Label>
+                    <Input
+                      className={inputClass("name")}
+                      placeholder="Ví dụ: Nguyễn Văn A"
+                      value={form.name}
+                      onChange={set("name")}
+                    />
+                    <FormError msg={errors.name || ""} />
+                  </div>
 
-                      {/* Email + Phone */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
-                            Email <span className="text-error normal-case">*</span>
-                          </Label>
-                          <Input
-                            type="email"
-                            className={inputClass("email")}
-                            placeholder="example@clinic.vn"
-                            value={form.email}
-                            onChange={set("email")}
-                          />
-                          <FormError msg={errors.email || ""} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
-                            Số điện thoại <span className="text-error normal-case">*</span>
-                          </Label>
-                          <Input
-                            type="tel"
-                            className={inputClass("phone")}
-                            placeholder="09xx xxx xxx"
-                            value={form.phone}
-                            onChange={set("phone")}
-                          />
-                          <FormError msg={errors.phone || ""} />
-                        </div>
-                      </div>
+                  {/* Email + Phone */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
+                        Email <span className="text-error normal-case">*</span>
+                      </Label>
+                      <Input
+                        type="email"
+                        className={inputClass("email")}
+                        placeholder="example@clinic.vn"
+                        value={form.email}
+                        onChange={set("email")}
+                      />
+                      <FormError msg={errors.email || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
+                        Số điện thoại <span className="text-error normal-case">*</span>
+                      </Label>
+                      <Input
+                        type="tel"
+                        className={inputClass("phone")}
+                        placeholder="09xx xxx xxx"
+                        value={form.phone}
+                        onChange={set("phone")}
+                      />
+                      <FormError msg={errors.phone || ""} />
                     </div>
                   </div>
 
-                  {/* PASSWORD */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
-                    <div className="px-6 pt-5 pb-4 border-b border-surface-container">
-                      <h2 className="font-headline font-bold text-base text-blue-900 flex items-center gap-2">
-                        <span className="p-1.5 bg-amber-100 rounded-lg"><Lock className="size-4 text-amber-600" /></span>
-                        Bảo mật tài khoản
-                      </h2>
-                      <p className="text-xs text-on-surface-variant mt-1 ml-9">Đặt mật khẩu đăng nhập lần đầu</p>
+                  {form.role === "Bác sĩ" && (
+                    <div className="space-y-1.5 pt-2">
+                      <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Trình độ chuyên môn</Label>
+                      <Select value={form.specialty} onValueChange={(v) => v && setForm((p) => ({ ...p, specialty: v }))}>
+                        <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 h-auto focus:ring-2 focus:ring-primary/20 text-sm">
+                          <SelectValue placeholder="Chọn trình độ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cử nhân">Cử nhân / Đại học</SelectItem>
+                          <SelectItem value="thạc sĩ">Thạc sĩ</SelectItem>
+                          <SelectItem value="tiến sĩ">Tiến sĩ</SelectItem>
+                          <SelectItem value="phó giáo sư">Phó giáo sư</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide flex items-center gap-1">
-                            <Lock className="size-3" /> Mật khẩu <span className="text-error normal-case">*</span>
-                          </Label>
-                          <PasswordInput
-                            placeholder="Tối thiểu 6 ký tự"
-                            value={form.password}
-                            onChange={(e) => {
-                              setForm((p) => ({ ...p, password: e.target.value }))
-                              if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
-                            }}
-                            inputClassName={cn(
-                              "border-none rounded-xl text-sm",
-                              errors.password ? "ring-2 ring-error/50 bg-error-container/10" : "bg-surface-container-low focus:ring-2 focus:ring-primary/20 focus:bg-surface"
-                            )}
-                          />
-                          <FormError msg={errors.password || ""} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide flex items-center gap-1">
-                            <LockKeyhole className="size-3" /> Xác nhận <span className="text-error normal-case">*</span>
-                          </Label>
-                          <PasswordInput
-                            placeholder="Nhập lại mật khẩu"
-                            value={form.confirmPassword}
-                            onChange={(e) => {
-                              setForm((p) => ({ ...p, confirmPassword: e.target.value }))
-                              if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: undefined }))
-                            }}
-                            inputClassName={cn(
-                              "border-none rounded-xl text-sm",
-                              errors.confirmPassword ? "ring-2 ring-error/50 bg-error-container/10" : "bg-surface-container-low focus:ring-2 focus:ring-primary/20 focus:bg-surface"
-                            )}
-                          />
-                          <FormError msg={errors.confirmPassword || ""} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* LINK USER INFO */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
-                    <div className="px-6 pt-5 pb-4 border-b border-surface-container">
-                      <h2 className="font-headline font-bold text-base text-blue-900 flex items-center gap-2">
-                        <span className="p-1.5 bg-secondary/10 rounded-lg"><UserRound className="size-4 text-secondary" /></span>
-                        Liên kết người dùng
-                      </h2>
-                      <p className="text-xs text-on-surface-variant mt-1 ml-9">Chọn tài khoản đã có trên hệ thống để cấp quyền {form.role === "Bác sĩ" ? "bác sĩ" : form.role === "Quản trị" ? "quản trị viên" : "lễ tân"}</p>
-                    </div>
-                    <div className="p-6 space-y-5">
-                      <div className="space-y-1.5 flex flex-col">
-                        <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">
-                          Tài khoản cần liên kết <span className="text-error normal-case">*</span>
-                        </Label>
-                        <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                          <PopoverTrigger render={
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={comboboxOpen}
-                              className={cn(
-                                "w-full justify-between bg-surface-container-low border-none rounded-xl py-3 px-4 h-auto hover:bg-surface-container-low focus:ring-2 transition-all font-normal shadow-none",
-                                !form.linkedUserId && "text-outline-variant",
-                                errors.linkedUserId ? "ring-2 ring-error/50 bg-error-container/10" : "focus:ring-primary/20"
-                              )}
-                            />
-                          }>
-                            {form.linkedUserId
-                              ? (() => {
-                                  const u = MOCK_EXISTING_USERS.find((u) => u.id === form.linkedUserId)
-                                  return u ? `${u.name} - ${u.email}` : "-- Tìm và chọn người dùng --"
-                                })()
-                              : "-- Tìm và chọn người dùng --"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                            <Command>
-                              <CommandInput placeholder="Tìm kiếm người dùng..." />
-                              <CommandList>
-                                <CommandEmpty>Không tìm thấy người dùng.</CommandEmpty>
-                                <CommandGroup>
-                                  {MOCK_EXISTING_USERS.map((u) => (
-                                    <CommandItem
-                                      key={u.id}
-                                      value={`${u.id}|${u.name}|${u.email}`}
-                                      onSelect={(currentValue) => {
-                                        const id = currentValue.split('|')[0]
-                                        setForm((p) => ({ ...p, linkedUserId: id === form.linkedUserId ? "" : id }))
-                                        if (errors.linkedUserId) setErrors((prev) => ({ ...prev, linkedUserId: undefined }))
-                                        setComboboxOpen(false)
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          form.linkedUserId === u.id ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      {u.name} - {u.email}
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                        <FormError msg={errors.linkedUserId || ""} />
-                      </div>
+                  )}
+                </div>
+              </div>
 
-                      {form.role === "Bác sĩ" && (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Trình độ chuyên môn</Label>
-                          <Select value={form.specialty} onValueChange={(v) => v && setForm((p) => ({ ...p, specialty: v }))}>
-                            <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 h-auto focus:ring-2 focus:ring-primary/20 text-sm">
-                              <SelectValue placeholder="Chọn trình độ" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cử nhân">Cử nhân / Đại học</SelectItem>
-                              <SelectItem value="thạc sĩ">Thạc sĩ</SelectItem>
-                              <SelectItem value="tiến sĩ">Tiến sĩ</SelectItem>
-                              <SelectItem value="phó giáo sư">Phó giáo sư</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
+              {/* PASSWORD */}
+              <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/15 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 border-b border-surface-container">
+                  <h2 className="font-headline font-bold text-base text-blue-900 flex items-center gap-2">
+                    <span className="p-1.5 bg-amber-100 rounded-lg"><Lock className="size-4 text-amber-600" /></span>
+                    Bảo mật tài khoản
+                  </h2>
+                  <p className="text-xs text-on-surface-variant mt-1 ml-9">Đặt mật khẩu đăng nhập lần đầu</p>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide flex items-center gap-1">
+                        <Lock className="size-3" /> Mật khẩu <span className="text-error normal-case">*</span>
+                      </Label>
+                      <PasswordInput
+                        placeholder="Tối thiểu 6 ký tự"
+                        value={form.password}
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, password: e.target.value }))
+                          if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+                        }}
+                        inputClassName={cn(
+                          "border-none rounded-xl text-sm",
+                          errors.password ? "ring-2 ring-error/50 bg-error-container/10" : "bg-surface-container-low focus:ring-2 focus:ring-primary/20 focus:bg-surface"
+                        )}
+                      />
+                      <FormError msg={errors.password || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-on-surface-variant uppercase tracking-wide flex items-center gap-1">
+                        <LockKeyhole className="size-3" /> Xác nhận <span className="text-error normal-case">*</span>
+                      </Label>
+                      <PasswordInput
+                        placeholder="Nhập lại mật khẩu"
+                        value={form.confirmPassword}
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                          if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: undefined }))
+                        }}
+                        inputClassName={cn(
+                          "border-none rounded-xl text-sm",
+                          errors.confirmPassword ? "ring-2 ring-error/50 bg-error-container/10" : "bg-surface-container-low focus:ring-2 focus:ring-primary/20 focus:bg-surface"
+                        )}
+                      />
+                      <FormError msg={errors.confirmPassword || ""} />
                     </div>
                   </div>
-                </>
-              )}
+                </div>
+              </div>
 
             </div>
 
@@ -452,7 +361,7 @@ export default function AddUserPage() {
               {/* Security card */}
               <SecurityCard
                 items={[
-                  { text: form.role === "Bệnh nhân" ? "Tài khoản yêu cầu đổi mật khẩu sau lần đăng nhập đầu tiên." : "Người dùng sẽ sử dụng mật khẩu hiện tại để đăng nhập." },
+                  { text: "Tài khoản yêu cầu đổi mật khẩu sau lần đăng nhập đầu tiên." },
                   { text: "Quyền hạn được giới hạn theo vai trò công việc." },
                 ]}
               />

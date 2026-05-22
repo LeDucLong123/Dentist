@@ -2,17 +2,19 @@
 // Dùng chung giữa /appointments (list) và /appointments/[id]/detail
 
 export const APPOINTMENTS = [
-  { id: "LK001", patient: "Nguyễn Văn A",  doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-16", start: "08:00", end: "09:00", status: "confirmed" },
-  { id: "LK002", patient: "Trần Thị B",    doctor: "BS. Emily Thorne",    service: "Chỉnh nha mắc cài",     date: "2026-05-17", start: "09:00", end: "10:30", status: "scheduled" },
-  { id: "LK003", patient: "Lê Văn C",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-17", start: "09:15", end: "10:15", status: "rescheduled" },
-  { id: "LK009", patient: "Hoàng Thị K",   doctor: "BS. Phạm Quốc Dũng", service: "Bọc răng sứ Zirconia",  date: "2026-05-17", start: "09:30", end: "10:30", status: "confirmed" },
-  { id: "LK004", patient: "Phạm Thị D",    doctor: "BS. Phạm Quốc Dũng", service: "Khám tổng quát",         date: "2026-05-16", start: "13:00", end: "14:00", status: "completed" },
-  { id: "LK011", patient: "Đỗ Văn M",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-17", start: "13:30", end: "14:30", status: "scheduled" },
-  { id: "LK005", patient: "Hoàng Minh E",  doctor: "BS. Julian Pierce",   service: "Nhổ răng khôn",          date: "2026-05-17", start: "08:30", end: "09:30", status: "confirmed" },
-  { id: "LK006", patient: "Vũ Thị F",      doctor: "BS. Emily Thorne",    service: "Bọc răng sứ",            date: "2026-05-17", start: "10:00", end: "11:00", status: "scheduled" },
-  { id: "LK007", patient: "Đặng Văn G",    doctor: "BS. Phạm Quốc Dũng", service: "Tẩy trắng răng",        date: "2026-05-19", start: "09:00", end: "09:30", status: "confirmed" },
-  { id: "LK008", patient: "Bùi Thị H",     doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-21", start: "11:00", end: "12:00", status: "scheduled" },
-  { id: "LK010", patient: "Lý Văn X",      doctor: "BS. Nguyễn Thị Lan",  service: "Nhổ răng khôn",          date: "2026-05-17", start: "15:00", end: "16:00", status: "cancelled" },
+  // Ngày hôm nay (2026-05-22)
+  { id: "LK001", patient: "Nguyễn Văn A",  doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-22", start: "08:00", end: "09:30", status: "confirmed" },
+  { id: "LK002", patient: "Trần Thị B",    doctor: "BS. Emily Thorne",    service: "Chỉnh nha mắc cài",     date: "2026-05-22", start: "09:00", end: "10:30", status: "scheduled" },
+  { id: "LK003", patient: "Lê Văn C",      doctor: "BS. Julian Pierce",   service: "Tẩy trắng răng",        date: "2026-05-22", start: "10:00", end: "11:00", status: "rescheduled" },
+  { id: "LK004", patient: "Phạm Thị D",    doctor: "BS. Phạm Quốc Dũng",  service: "Khám tổng quát",        date: "2026-05-22", start: "13:30", end: "14:30", status: "completed" },
+  { id: "LK005", patient: "Đỗ Văn M",      doctor: "BS. Nguyễn Thị Lan",  service: "Nhổ răng khôn",         date: "2026-05-22", start: "15:00", end: "16:30", status: "confirmed" },
+
+  // Ngày mai (2026-05-23)
+  { id: "LK006", patient: "Hoàng Minh E",  doctor: "BS. Julian Pierce",   service: "Nhổ răng khôn",         date: "2026-05-23", start: "08:30", end: "09:30", status: "confirmed" },
+  { id: "LK007", patient: "Vũ Thị F",      doctor: "BS. Emily Thorne",    service: "Bọc răng sứ",           date: "2026-05-23", start: "10:00", end: "11:30", status: "scheduled" },
+  { id: "LK008", patient: "Đặng Văn G",    doctor: "BS. Phạm Quốc Dũng",  service: "Tẩy trắng răng",        date: "2026-05-23", start: "14:00", end: "15:00", status: "confirmed" },
+  { id: "LK009", patient: "Bùi Thị H",     doctor: "BS. Julian Pierce",   service: "Cấy ghép Implant",      date: "2026-05-23", start: "15:30", end: "17:00", status: "scheduled" },
+  { id: "LK010", patient: "Lý Văn X",      doctor: "BS. Nguyễn Thị Lan",  service: "Nhổ răng khôn",         date: "2026-05-23", start: "16:00", end: "17:00", status: "cancelled" },
 ]
 
 // ─── Extended detail data ─────────────────────────────────────────────────────
@@ -62,16 +64,6 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "Gel tẩy trắng take-home", qty: 1, unit: "bộ", price: 1000000, type: "khuyenmai" },
     ],
   },
-  LK009: {
-    patientId: "BN009", patientPhone: "0934 567 890", patientEmail: "htk@email.com",
-    patientAddress: "12 Phan Đình Phùng, Q.PN, TP.HCM", patientDob: "1992-06-17",
-    doctorId: "BS003", doctorSpecialty: "Nhổ răng & Phẫu thuật", doctorPhone: "0903 333 444",
-    room: "Phòng 4C", note: "",
-    price: 12000000, discount: 0, paid: 6000000,
-    items: [
-      { name: "Bọc răng sứ Zirconia (4 răng)", qty: 4, unit: "cái", price: 3000000, type: "vip" },
-    ],
-  },
   LK004: {
     patientId: "BN004", patientPhone: "0978 222 333", patientEmail: "ptd@email.com",
     patientAddress: "56 Võ Văn Tần, Q.3, TP.HCM", patientDob: "1985-02-28",
@@ -83,7 +75,7 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "X-quang panoramic", qty: 1, unit: "lần", price: 200000, type: "thuong" },
     ],
   },
-  LK011: {
+  LK005: {
     patientId: "BN011", patientPhone: "0965 444 555", patientEmail: "dvm@email.com",
     patientAddress: "89 Nguyễn Đình Chiểu, Q.3, TP.HCM", patientDob: "1993-09-12",
     doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
@@ -94,7 +86,7 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "Gel tẩy trắng take-home", qty: 1, unit: "bộ", price: 1000000, type: "thuong" },
     ],
   },
-  LK005: {
+  LK006: {
     patientId: "BN005", patientPhone: "0912 888 999", patientEmail: "hme@email.com",
     patientAddress: "34 Đinh Tiên Hoàng, Q.BT, TP.HCM", patientDob: "1991-04-05",
     doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
@@ -105,7 +97,7 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "Thuốc kháng sinh + giảm đau", qty: 1, unit: "đơn", price: 1000000, type: "khuyenmai" },
     ],
   },
-  LK006: {
+  LK007: {
     patientId: "BN006", patientPhone: "0987 111 333", patientEmail: "vtf@email.com",
     patientAddress: "67 Lý Thường Kiệt, Q.10, TP.HCM", patientDob: "1994-12-20",
     doctorId: "BS002", doctorSpecialty: "Chỉnh nha", doctorPhone: "0902 222 333",
@@ -115,7 +107,7 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "Bọc răng sứ E-max (2 răng)", qty: 2, unit: "cái", price: 4000000, type: "vip" },
     ],
   },
-  LK007: {
+  LK008: {
     patientId: "BN007", patientPhone: "0909 777 888", patientEmail: "dvg@email.com",
     patientAddress: "23 Cách Mạng Tháng 8, Q.TB, TP.HCM", patientDob: "1987-08-15",
     doctorId: "BS003", doctorSpecialty: "Nhổ răng & Phẫu thuật", doctorPhone: "0903 333 444",
@@ -125,7 +117,7 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
       { name: "Tẩy trắng tại phòng khám", qty: 1, unit: "ca", price: 3000000, type: "thuong" },
     ],
   },
-  LK008: {
+  LK009: {
     patientId: "BN008", patientPhone: "0934 222 111", patientEmail: "bth@email.com",
     patientAddress: "101 Nguyễn Văn Cừ, Q.5, TP.HCM", patientDob: "1989-01-30",
     doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
