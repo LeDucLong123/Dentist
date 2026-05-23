@@ -15,6 +15,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Coins,
 } from "lucide-react"
 
 const navItems = [
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/appointments", label: "Lịch khám", icon: CalendarIcon },
   { href: "/services", label: "Dịch vụ", icon: Wrench },
   { href: "/pricing", label: "Bảng giá", icon: CreditCard },
+  { href: "/payroll", label: "Tính lương", icon: Coins },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ]
 
