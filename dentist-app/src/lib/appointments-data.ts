@@ -26,6 +26,10 @@ export interface AppointmentDetail {
   service: string; date: string; start: string; end: string; status: string; room: string; note: string
   price: number; discount: number; paid: number
   items: { name: string; qty: number; unit: string; price: number; type: "vip" | "thuong" | "khuyenmai" }[]
+  symptoms?: string
+  diagnosis?: string
+  prescription?: string
+  payments?: { date: string; amount: number; method: string }[]
 }
 
 const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
@@ -170,5 +174,73 @@ export function getAppointmentDetail(id: string): AppointmentDetail {
     discount:        detail.discount       ?? 0,
     paid:            detail.paid           ?? 0,
     items:           detail.items          ?? [],
+    symptoms:        detail.symptoms       ?? "",
+    diagnosis:       detail.diagnosis      ?? "",
+    prescription:    detail.prescription   ?? "",
+    payments:        detail.payments       ?? [],
   }
 }
+
+export function updateAppointmentDetail(id: string, updates: Partial<AppointmentDetail>) {
+  const base = APPOINTMENTS.find((a) => a.id === id)
+  if (base) {
+    if (updates.status !== undefined) base.status = updates.status
+    if (updates.date !== undefined) base.date = updates.date
+    if (updates.start !== undefined) base.start = updates.start
+    if (updates.end !== undefined) base.end = updates.end
+    if (updates.service !== undefined) base.service = updates.service
+    if (updates.patient !== undefined) base.patient = updates.patient
+    if (updates.doctor !== undefined) base.doctor = updates.doctor
+  }
+
+  if (!DETAIL_MAP[id]) {
+    DETAIL_MAP[id] = {}
+  }
+  
+  const detail = DETAIL_MAP[id]
+  if (updates.patientId !== undefined) detail.patientId = updates.patientId
+  if (updates.patientPhone !== undefined) detail.patientPhone = updates.patientPhone
+  if (updates.patientEmail !== undefined) detail.patientEmail = updates.patientEmail
+  if (updates.patientAddress !== undefined) detail.patientAddress = updates.patientAddress
+  if (updates.patientDob !== undefined) detail.patientDob = updates.patientDob
+  if (updates.doctorId !== undefined) detail.doctorId = updates.doctorId
+  if (updates.doctorSpecialty !== undefined) detail.doctorSpecialty = updates.doctorSpecialty
+  if (updates.doctorPhone !== undefined) detail.doctorPhone = updates.doctorPhone
+  if (updates.room !== undefined) detail.room = updates.room
+  if (updates.note !== undefined) detail.note = updates.note
+  if (updates.price !== undefined) detail.price = updates.price
+  if (updates.discount !== undefined) detail.discount = updates.discount
+  if (updates.paid !== undefined) detail.paid = updates.paid
+  if (updates.items !== undefined) detail.items = updates.items
+  if (updates.symptoms !== undefined) detail.symptoms = updates.symptoms
+  if (updates.diagnosis !== undefined) detail.diagnosis = updates.diagnosis
+  if (updates.prescription !== undefined) detail.prescription = updates.prescription
+  if (updates.payments !== undefined) detail.payments = updates.payments
+}
+
+// ─── Shared Mock Entities ─────────────────────────────────────────────────────
+
+export const PATIENTS = [
+  { id: "BN001", name: "Nguyễn Văn An",   phone: "0912 345 678", email: "nva@email.com", address: "123 Lê Lợi, Q.1, TP.HCM", dob: "1990-03-15" },
+  { id: "BN002", name: "Trần Thị Bích",   phone: "0987 654 321", email: "ttb@email.com", address: "45 Nguyễn Huệ, Q.1, TP.HCM", dob: "1995-07-22" },
+  { id: "BN003", name: "Lê Hoàng Cường",  phone: "0909 111 222", email: "lvc@email.com", address: "78 Trần Hưng Đạo, Q.5, TP.HCM", dob: "1988-11-03" },
+  { id: "BN004", name: "Phạm Thị Dung",   phone: "0934 567 890", email: "ptd@email.com", address: "56 Võ Văn Tần, Q.3, TP.HCM", dob: "1985-02-28" },
+]
+
+export const DOCTORS = [
+  { id: "BS001", name: "BS. Julian Pierce",   specialty: "Cấy ghép Implant", phone: "0901 111 222" },
+  { id: "BS002", name: "BS. Emily Thorne",    specialty: "Chỉnh nha", phone: "0902 222 333" },
+  { id: "BS003", name: "BS. Phạm Quốc Dũng", specialty: "Nhổ răng & Phẫu thuật", phone: "0903 333 444" },
+  { id: "BS004", name: "BS. Nguyễn Thị Lan", specialty: "Thẩm mỹ nha khoa", phone: "0904 444 555" },
+]
+
+export const SERVICES = [
+  { id: "DV001", name: "Khám tổng quát", price: { thuong: 300000, vip: 500000, khuyenmai: 250000 }, unit: "lần" },
+  { id: "DV002", name: "X-quang panoramic", price: { thuong: 200000, vip: 300000, khuyenmai: 150000 }, unit: "lần" },
+  { id: "DV003", name: "Nhổ răng khôn phẫu thuật", price: { thuong: 2500000, vip: 4000000, khuyenmai: 2000000 }, unit: "răng" },
+  { id: "DV004", name: "Tẩy trắng Zoom Whitening", price: { thuong: 2500000, vip: 3500000, khuyenmai: 2000000 }, unit: "ca" },
+  { id: "DV005", name: "Bọc răng sứ Zirconia", price: { thuong: 2500000, vip: 3000000, khuyenmai: 2200000 }, unit: "cái" },
+  { id: "DV006", name: "Implant Straumann SLA", price: { thuong: 8000000, vip: 10000000, khuyenmai: 7000000 }, unit: "cái" },
+  { id: "DV007", name: "Mắc cài kim loại", price: { thuong: 18000000, vip: 20000000, khuyenmai: 15000000 }, unit: "bộ" },
+]
+

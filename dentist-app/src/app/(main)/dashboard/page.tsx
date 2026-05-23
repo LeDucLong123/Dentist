@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Topbar } from "@/components/topbar"
-import { APPOINTMENTS } from "@/lib/appointments-data"
+import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
 import { cn } from "@/lib/utils"
 import {
   Users, Stethoscope, CalendarCheck, TrendingUp, TrendingDown,
@@ -49,6 +49,8 @@ const RECENT_ACTIVITY = [
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   confirmed:   { label: "Đã xác nhận", color: "text-emerald-600 bg-emerald-50",  icon: CheckCircle2 },
   scheduled:   { label: "Chờ xác nhận", color: "text-blue-600 bg-blue-50",       icon: AlertCircle },
+  checked_in:  { label: "Đã tiếp đón",  color: "text-purple-600 bg-purple-50",    icon: Clock },
+  examining:   { label: "Đang khám",    color: "text-pink-600 bg-pink-50",        icon: Activity },
   rescheduled: { label: "Yêu cầu đổi", color: "text-amber-600 bg-amber-50",      icon: ArrowRightLeft },
   completed:   { label: "Hoàn thành",   color: "text-slate-600 bg-slate-100",     icon: BadgeCheck },
   cancelled:   { label: "Đã hủy",       color: "text-red-600 bg-red-50",          icon: XCircle },
@@ -97,7 +99,7 @@ function KpiCard({ icon: Icon, label, value, sub, trend, trendUp, gradient }: {
 export default function DashboardPage() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const todayApts = APPOINTMENTS.filter(a => a.date === todayStr)
-  const confirmedToday = todayApts.filter(a => a.status === "confirmed").length
+  const confirmedToday = todayApts.filter(a => a.status === "confirmed" || a.status === "checked_in" || a.status === "examining").length
   const pendingToday = todayApts.filter(a => a.status === "scheduled").length
 
   const [now, setNow] = useState(new Date())
@@ -105,6 +107,94 @@ export default function DashboardPage() {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
+
+  // Calculate dynamic metrics
+  const mayApts = APPOINTMENTS.filter(a => a.date.startsWith("2026-05"))
+  
+  // 1. Patient count: unique patients in May 2026 + offset 310
+  const uniquePatientsMay = new Set(mayApts.map(a => a.patient)).size
+  const patientCountVal = 310 + uniquePatientsMay
+  
+  // 2. Revenue count: sum of all detail.paid in May + offset 98,200,000
+  const paidMaySum = mayApts.reduce((sum, a) => {
+    const detail = getAppointmentDetail(a.id)
+    return sum + detail.paid
+  }, 0)
+  const monthlyRevVal = 98200000 + paidMaySum
+  const monthlyRevStr = `${(monthlyRevVal / 1000000).toFixed(1)}M`
+  
+  // 3. Completion rate: (completed base 150 + completed count) / (total base 155 + completed count + cancelled count)
+  const completedMayCount = mayApts.filter(a => a.status === "completed").length
+  const cancelledMayCount = mayApts.filter(a => a.status === "cancelled").length
+  const compBase = 150
+  const totalBase = 155
+  const compRateVal = ((compBase + completedMayCount) / (totalBase + completedMayCount + cancelledMayCount)) * 100
+  const compRateStr = `${compRateVal.toFixed(1)}%`
+  const cancelledRateStr = `${((5 + cancelledMayCount) / (totalBase + completedMayCount + cancelledMayCount) * 100).toFixed(1)}%`
+  
+  // 4. Dynamic revenue chart
+  const dynamicRevenueMonths = REVENUE_MONTHS.map((m, idx) => {
+    if (m.month === "T5") {
+      return { ...m, value: Math.round(monthlyRevVal / 1000000) }
+    }
+    return m
+  })
+  const dynamicMaxRev = Math.max(...dynamicRevenueMonths.map(m => m.value))
+  
+  // 5. Dynamic top doctors
+  const docStats = APPOINTMENTS.reduce((acc, a) => {
+    const detail = getAppointmentDetail(a.id)
+    if (!acc[a.doctor]) {
+      acc[a.doctor] = { patients: 0, revenue: 0 }
+    }
+    acc[a.doctor].patients += 1
+    acc[a.doctor].revenue += detail.paid
+    return acc
+  }, {} as Record<string, { patients: number; revenue: number }>)
+  
+  const dynamicDoctors = TOP_DOCTORS.map(d => {
+    const stats = docStats[d.name] || { patients: 0, revenue: 0 }
+    return {
+      ...d,
+      patients: d.patients + stats.patients,
+    }
+  }).sort((a, b) => b.patients - a.patients)
+  
+  // 6. Dynamic top services
+  const serviceCounts: Record<string, number> = {
+    "Cấy ghép Implant": 48,
+    "Chỉnh nha mắc cài": 35,
+    "Bọc răng sứ": 28,
+    "Tẩy trắng răng": 22,
+    "Nhổ răng khôn": 17,
+  }
+  
+  APPOINTMENTS.forEach(a => {
+    if (serviceCounts[a.service] !== undefined) {
+      serviceCounts[a.service] += 1
+    }
+    const detail = getAppointmentDetail(a.id)
+    detail.items.forEach(item => {
+      for (const key in serviceCounts) {
+        if (item.name.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(item.name.toLowerCase())) {
+          serviceCounts[key] += item.qty
+          break
+        }
+      }
+    })
+  })
+  
+  const totalServicesCount = Object.values(serviceCounts).reduce((s, c) => s + c, 0)
+  const dynamicServices = Object.entries(serviceCounts).map(([name, count]) => {
+    const pct = totalServicesCount > 0 ? Math.round((count / totalServicesCount) * 100) : 0
+    const orig = TOP_SERVICES.find(s => s.name === name)
+    return {
+      name,
+      count,
+      pct,
+      color: orig?.color || "bg-primary"
+    }
+  }).sort((a, b) => b.count - a.count)
 
   return (
     <>
@@ -134,22 +224,22 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             icon={CalendarCheck} label="Lịch khám hôm nay" value={`${todayApts.length}`}
-            sub={`${confirmedToday} xác nhận · ${pendingToday} chờ`}
+            sub={`${confirmedToday} đã đến/xác nhận · ${pendingToday} chờ`}
             trend="+12%" trendUp gradient="bg-gradient-to-br from-primary to-blue-400"
           />
           <KpiCard
-            icon={Users} label="Bệnh nhân tháng này" value="324"
+            icon={Users} label="Bệnh nhân tháng này" value={`${patientCountVal}`}
             sub="So với 298 tháng trước"
             trend="+8.7%" trendUp gradient="bg-gradient-to-br from-violet-500 to-purple-400"
           />
           <KpiCard
-            icon={DollarSign} label="Doanh thu tháng" value="128.5M"
+            icon={DollarSign} label="Doanh thu tháng" value={monthlyRevStr}
             sub="Mục tiêu: 150M"
             trend="+5.2%" trendUp gradient="bg-gradient-to-br from-emerald-500 to-teal-400"
           />
           <KpiCard
-            icon={Activity} label="Tỉ lệ hoàn thành" value="94.2%"
-            sub="Tỉ lệ hủy: 2.1%"
+            icon={Activity} label="Tỉ lệ hoàn thành" value={compRateStr}
+            sub={`Tỉ lệ hủy: ${cancelledRateStr}`}
             trend="-0.3%" trendUp={false} gradient="bg-gradient-to-br from-amber-500 to-orange-400"
           />
         </div>
@@ -169,9 +259,9 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-end gap-2 h-44">
-              {REVENUE_MONTHS.map((m, i) => {
+              {dynamicRevenueMonths.map((m, i) => {
                 const isThisMonth = i === new Date().getMonth()
-                const pct = (m.value / MAX_REV) * 100
+                const pct = dynamicMaxRev > 0 ? (m.value / dynamicMaxRev) * 100 : 0
                 return (
                   <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5 group">
                     <span className="text-[10px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -283,7 +373,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-3">
-              {TOP_DOCTORS.map((d, i) => (
+              {dynamicDoctors.map((d, i) => (
                 <div key={d.name} className="flex items-center gap-3">
                   <span className="text-[10px] font-bold text-slate-300 w-4 shrink-0">#{i + 1}</span>
                   <div className="size-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-400 flex items-center justify-center shrink-0">
@@ -317,7 +407,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-4">
-              {TOP_SERVICES.map((s) => (
+              {dynamicServices.map((s) => (
                 <div key={s.name}>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-semibold text-slate-700 truncate pr-2">{s.name}</p>

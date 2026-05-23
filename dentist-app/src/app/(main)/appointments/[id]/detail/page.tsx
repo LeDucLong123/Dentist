@@ -1,17 +1,19 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
-import { vi } from "date-fns/locale/vi"
 import { cn } from "@/lib/utils"
-import { getAppointmentDetail } from "@/lib/appointments-data"
+import { getAppointmentDetail, updateAppointmentDetail } from "@/lib/appointments-data"
+import { fmtCurrency } from "@/lib/date-utils"
+import { StatusBadge } from "@/components/status-badge"
+import { RescheduleDialog } from "./_components/reschedule-dialog"
+import { AddServiceDialog } from "./_components/add-service-dialog"
+import { PaymentDialog } from "./_components/payment-dialog"
+import { ClinicalExamForm } from "./_components/clinical-exam-form"
 import {
   ChevronRight,
   Clock,
@@ -21,7 +23,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  FileText,
   Tag,
   CreditCard,
   CheckCircle2,
@@ -29,23 +30,19 @@ import {
   Trash2,
   ArrowRightLeft,
   BadgeCheck,
+  Activity,
+  Plus,
 } from "lucide-react"
 
-// ─── Status ───────────────────────────────────────────────────────────────────
-
-const STATUS_MAP: Record<string, { label: string; bg: string; text: string; icon: React.ElementType }> = {
-  confirmed:   { label: "Đã xác nhận",  bg: "bg-emerald-50", text: "text-emerald-700", icon: CheckCircle2 },
-  scheduled:   { label: "Chờ xác nhận", bg: "bg-blue-50",    text: "text-blue-700",    icon: AlertCircle },
-  rescheduled: { label: "Yêu cầu đổi",  bg: "bg-amber-50",   text: "text-amber-700",   icon: ArrowRightLeft },
-  completed:   { label: "Hoàn thành",   bg: "bg-slate-50",   text: "text-slate-600",   icon: BadgeCheck },
-  cancelled:   { label: "Đã hủy",       bg: "bg-red-50",     text: "text-red-600",     icon: AlertCircle },
+const STATUS_LABELS: Record<string, string> = {
+  confirmed: "Đã xác nhận",
+  scheduled: "Chờ xác nhận",
+  checked_in: "Đã tiếp đón",
+  examining: "Đang khám",
+  rescheduled: "Yêu cầu đổi",
+  completed: "Hoàn thành",
+  cancelled: "Đã hủy",
 }
-
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n)
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AppointmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -53,12 +50,11 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   
   const [apt, setApt] = useState(initialApt)
 
-  // Reschedule dialog states
+  // Modals visibility states
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
-  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(initialApt?.date ? new Date(initialApt.date) : undefined)
-  const [rescheduleStartTime, setRescheduleStartTime] = useState(initialApt?.start || "09:00")
-  const [rescheduleEndTime, setRescheduleEndTime] = useState(initialApt?.end || "10:00")
-  const [rescheduleRoom, setRescheduleRoom] = useState(initialApt?.room || "P.01")
+  const [isAddServiceOpen, setIsAddServiceOpen] = useState(false)
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
+
   const [confirmAction, setConfirmAction] = useState<{
     isOpen: boolean
     title: string
@@ -72,6 +68,22 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
     action: () => {},
   })
 
+  // Clinical Exam states
+  const [examSymptoms, setExamSymptoms] = useState("")
+  const [examDiagnosis, setExamDiagnosis] = useState("")
+  const [examPrescription, setExamPrescription] = useState("")
+  const [examNote, setExamNote] = useState("")
+
+  // Sync clinical exam inputs when apt changes
+  useEffect(() => {
+    if (apt) {
+      setExamSymptoms(apt.symptoms || "")
+      setExamDiagnosis(apt.diagnosis || "")
+      setExamPrescription(apt.prescription || "")
+      setExamNote(apt.note || "")
+    }
+  }, [apt])
+
   if (!apt) {
     return (
       <div className="p-8 text-center text-on-surface-variant">
@@ -80,22 +92,72 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
     )
   }
 
-  const handleReschedule = () => {
-    setApt({
-      ...apt,
-      date: rescheduleDate ? format(rescheduleDate, "yyyy-MM-dd") : apt.date,
-      start: rescheduleStartTime,
-      end: rescheduleEndTime,
-      room: rescheduleRoom,
+  const handleReschedule = (date: Date | undefined, startTime: string, endTime: string, room: string) => {
+    const nextDate = date ? format(date, "yyyy-MM-dd") : apt.date
+    updateAppointmentDetail(apt.id, {
+      date: nextDate,
+      start: startTime,
+      end: endTime,
+      room: room,
       status: "rescheduled"
     })
+    setApt(getAppointmentDetail(apt.id))
     setIsRescheduleOpen(false)
   }
 
-  const s = STATUS_MAP[apt.status] ?? STATUS_MAP.scheduled
-  const StatusIcon = s.icon
+  const handleAddService = (item: { name: string; qty: number; unit: string; price: number; type: "vip" | "thuong" | "khuyenmai" }) => {
+    const updatedItems = [...apt.items, item]
+    const updatedPrice = apt.price + (item.price * item.qty)
+    
+    updateAppointmentDetail(apt.id, {
+      items: updatedItems,
+      price: updatedPrice
+    })
+    setApt(getAppointmentDetail(apt.id))
+    setIsAddServiceOpen(false)
+  }
+
+  const handleConfirmPayment = (amount: number, method: string) => {
+    if (amount <= 0) return
+    const newPaid = apt.paid + amount
+    const newPayment = {
+      date: format(new Date(), "yyyy-MM-dd HH:mm"),
+      amount: amount,
+      method: method
+    }
+    const updatedPayments = [...(apt.payments || []), newPayment]
+
+    updateAppointmentDetail(apt.id, {
+      paid: newPaid,
+      payments: updatedPayments
+    })
+    setApt(getAppointmentDetail(apt.id))
+    setIsPaymentOpen(false)
+  }
+
+  const handleCompleteExamClick = () => {
+    setConfirmAction({
+      isOpen: true,
+      title: "Lưu hồ sơ & Hoàn tất khám",
+      description: "Xác nhận lưu toàn bộ hồ sơ lâm sàng và hoàn tất ca khám? Ca khám sẽ chuyển sang trạng thái Hoàn thành (chờ thanh toán).",
+      action: () => {
+        updateAppointmentDetail(apt.id, {
+          status: "completed",
+          symptoms: examSymptoms,
+          diagnosis: examDiagnosis,
+          prescription: examPrescription,
+          note: examNote
+        })
+        setApt(getAppointmentDetail(apt.id))
+        setConfirmAction(prev => ({ ...prev, isOpen: false }))
+      }
+    })
+  }
+
   const total = apt.price - apt.discount
   const remaining = total - apt.paid
+  const isActionable = apt.status === "scheduled" || apt.status === "confirmed" || apt.status === "rescheduled"
+  const statusLabel = STATUS_LABELS[apt.status] || apt.status
 
   return (
     <>
@@ -113,69 +175,108 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold", s.bg, s.text)}>
-                <StatusIcon className="size-3" />
-                {s.label}
-              </span>
+              <StatusBadge status={apt.status} variant="icon" />
               <span className="text-xs font-mono text-on-surface-variant/50">#{apt.id}</span>
             </div>
             <h1 className="text-xl font-bold text-on-surface">Ca khám: {apt.service}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {apt.status === "scheduled" && (
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Tiếp đón: Scheduled / Confirmed / Rescheduled */}
+              {(apt.status === "scheduled" || apt.status === "confirmed" || apt.status === "rescheduled") && (
+                <Button 
+                  onClick={() => setConfirmAction({
+                    isOpen: true,
+                    title: "Tiếp đón bệnh nhân",
+                    description: "Xác nhận bệnh nhân đã có mặt tại phòng khám và sẵn sàng chờ khám?",
+                    action: () => {
+                      updateAppointmentDetail(apt.id, { status: "checked_in" })
+                      setApt(getAppointmentDetail(apt.id))
+                      setConfirmAction(prev => ({ ...prev, isOpen: false }))
+                    }
+                  })}
+                  className="h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white gap-1.5 text-sm font-semibold border-transparent"
+                >
+                  <CheckCircle2 className="size-4" />
+                  Tiếp đón
+                </Button>
+              )}
+
+              {/* Bắt đầu khám: checked_in */}
+              {apt.status === "checked_in" && (
+                <Button 
+                  onClick={() => setConfirmAction({
+                    isOpen: true,
+                    title: "Bắt đầu khám bệnh",
+                    description: "Bắt đầu tiến hành khám và cập nhật hồ sơ lâm sàng cho bệnh nhân?",
+                    action: () => {
+                      updateAppointmentDetail(apt.id, { status: "examining" })
+                      setApt(getAppointmentDetail(apt.id))
+                      setConfirmAction(prev => ({ ...prev, isOpen: false }))
+                    }
+                  })}
+                  className="h-9 rounded-xl bg-pink-600 hover:bg-pink-700 text-white gap-1.5 text-sm font-semibold border-transparent"
+                >
+                  <Activity className="size-4" />
+                  Bắt đầu khám
+                </Button>
+              )}
+
+              {/* Hoàn tất khám: examining */}
+              {apt.status === "examining" && (
+                <Button 
+                  onClick={handleCompleteExamClick}
+                  className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-sm font-semibold border-transparent"
+                >
+                  <BadgeCheck className="size-4" />
+                  Hoàn tất khám
+                </Button>
+              )}
+
+              {/* Đổi lịch */}
               <Button 
-                onClick={() => setConfirmAction({
-                  isOpen: true,
-                  title: "Xác nhận lịch khám",
-                  description: "Bạn có chắc chắn muốn xác nhận lịch khám này? Bệnh nhân sẽ nhận được thông báo xác nhận.",
-                  action: () => { setApt({ ...apt, status: "confirmed" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) }
-                })}
-                className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-sm font-semibold border-transparent"
-              >
-                <CheckCircle2 className="size-4" />
-                Xác nhận
-              </Button>
-            )}
-            {apt.status === "confirmed" && (
-              <Button 
-                onClick={() => setConfirmAction({
-                  isOpen: true,
-                  title: "Hoàn thành ca khám",
-                  description: "Đánh dấu ca khám đã hoàn tất? Bạn sẽ không thể thay đổi thông tin hóa đơn sau khi hoàn thành.",
-                  action: () => { setApt({ ...apt, status: "completed" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) }
-                })}
-                className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5 text-sm font-semibold border-transparent"
-              >
-                <BadgeCheck className="size-4" />
-                Hoàn thành
-              </Button>
-            )}
-            {apt.status !== "completed" && apt.status !== "cancelled" && (
-              <Button 
+                disabled={!isActionable}
                 onClick={() => setIsRescheduleOpen(true)}
                 variant="outline" 
-                className="h-9 rounded-xl border-outline-variant/30 text-on-surface-variant gap-1.5 text-sm font-semibold hover:text-primary hover:border-primary/30"
+                className="h-9 rounded-xl border-outline-variant/30 text-on-surface-variant gap-1.5 text-sm font-semibold hover:text-primary hover:border-primary/30 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ArrowRightLeft className="size-4 text-violet-500" />
                 Đổi lịch
               </Button>
-            )}
-            {apt.status !== "completed" && apt.status !== "cancelled" && (
+
+              {/* Hủy lịch */}
               <Button 
+                disabled={!isActionable}
                 onClick={() => setConfirmAction({
                   isOpen: true,
                   title: "Hủy lịch khám",
                   description: "Bạn có chắc chắn muốn hủy lịch khám này? Hành động này không thể hoàn tác.",
-                  action: () => { setApt({ ...apt, status: "cancelled" }); setConfirmAction(prev => ({ ...prev, isOpen: false })) },
+                  action: () => {
+                    updateAppointmentDetail(apt.id, { status: "cancelled" })
+                    setApt(getAppointmentDetail(apt.id))
+                    setConfirmAction(prev => ({ ...prev, isOpen: false }))
+                  },
                   variant: "destructive"
                 })}
                 variant="outline" 
-                className="h-9 rounded-xl border-red-200 text-red-500 gap-1.5 text-sm font-semibold hover:bg-red-50"
+                className="h-9 rounded-xl border-red-200 text-red-500 gap-1.5 text-sm font-semibold hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
                 <Trash2 className="size-4" />
                 Hủy lịch
               </Button>
-            )}
+            </div>
+            {/* Warning block */}
+            <div className="text-[11px] text-on-surface-variant/60 flex items-center gap-2 flex-wrap justify-end">
+              {!isActionable && (
+                <span className="text-red-700 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-200/50 flex items-center gap-1">
+                  <AlertCircle className="size-3 text-red-500 shrink-0" />
+                  Không thể đổi/hủy lịch ở trạng thái: {statusLabel}
+                </span>
+              )}
+              <span className="font-medium text-on-surface-variant/40">
+                * Chỉ đổi/hủy lịch ở trạng thái: Chờ xác nhận, Đã xác nhận, Yêu cầu đổi.
+              </span>
+            </div>
           </div>
         </div>
 
@@ -281,9 +382,21 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
 
             {/* Dịch vụ & Chi phí */}
             <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30 flex items-center gap-2">
-                <Tag className="size-4 text-primary" />
-                <h2 className="font-bold text-sm text-on-surface">Dịch vụ & Chi phí</h2>
+              <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="size-4 text-primary" />
+                  <h2 className="font-bold text-sm text-on-surface">Dịch vụ & Chi phí</h2>
+                </div>
+                {apt.status === "examining" && (
+                  <Button 
+                    onClick={() => setIsAddServiceOpen(true)}
+                    size="sm"
+                    className="h-8 rounded-lg bg-primary hover:bg-primary/95 text-white gap-1 text-xs font-semibold border-transparent"
+                  >
+                    <Plus className="size-3" />
+                    Thêm dịch vụ
+                  </Button>
+                )}
               </div>
               <div className="p-6">
                 <table className="w-full">
@@ -342,122 +455,72 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
                     <span className="font-semibold text-emerald-600">{fmtCurrency(apt.paid)}</span>
                   </div>
                   <div className={cn(
-                    "flex justify-between text-xs font-bold rounded-lg px-3 py-2 mt-1",
+                    "flex justify-between items-center text-xs font-bold rounded-lg px-3 py-2 mt-1",
                     remaining > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
                   )}>
                     <span className="flex items-center gap-1">
                       <CreditCard className="size-3" />
                       {remaining > 0 ? "Còn nợ" : "Đã thanh toán đủ"}
                     </span>
-                    <span>{remaining > 0 ? fmtCurrency(remaining) : "✓"}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{remaining > 0 ? fmtCurrency(remaining) : "✓"}</span>
+                      {apt.status === "completed" && remaining > 0 && (
+                        <Button 
+                          onClick={() => setIsPaymentOpen(true)}
+                          size="sm" 
+                          className="h-6 px-2 text-[10px] rounded bg-emerald-600 hover:bg-emerald-750 text-white font-bold border-transparent"
+                        >
+                          Thanh toán
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Lịch sử thanh toán */}
+                {apt.payments && apt.payments.length > 0 && (
+                  <div className="mt-4 border-t border-outline-variant/10 pt-4">
+                    <h3 className="text-xs font-bold text-on-surface mb-2">Lịch sử thanh toán</h3>
+                    <div className="space-y-1.5">
+                      {apt.payments.map((p, idx) => (
+                        <div key={idx} className="flex justify-between text-[11px] bg-slate-50 p-2 rounded-lg">
+                          <span className="text-on-surface-variant/70">{p.date} ({p.method})</span>
+                          <span className="font-bold text-emerald-600">+{fmtCurrency(p.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Ghi chú */}
-            <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30 flex items-center gap-2">
-                <FileText className="size-4 text-primary" />
-                <h2 className="font-bold text-sm text-on-surface">Ghi chú lâm sàng</h2>
-              </div>
-              <div className="p-6">
-                {apt.note ? (
-                  <div className="flex gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-                    <AlertCircle className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-800 leading-relaxed">{apt.note}</p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-on-surface-variant/40 italic">Không có ghi chú</p>
-                )}
-              </div>
-            </div>
+            <ClinicalExamForm
+              status={apt.status}
+              symptoms={examSymptoms}
+              setSymptoms={setExamSymptoms}
+              diagnosis={examDiagnosis}
+              setDiagnosis={setExamDiagnosis}
+              prescription={examPrescription}
+              setPrescription={setExamPrescription}
+              note={examNote}
+              setNote={setExamNote}
+            />
           </div>
         </div>
       </div>
 
       {/* Reschedule Dialog */}
-      <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Đổi lịch khám</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-on-surface-variant/60">Ngày khám mới</label>
-              <Popover>
-                <PopoverTrigger 
-                  render={
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "h-10 w-full justify-start text-left font-medium rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20",
-                        !rescheduleDate && "text-on-surface-variant/40"
-                      )}
-                    />
-                  }
-                >
-                  <CalendarDays className="mr-2 size-4" />
-                  {rescheduleDate ? format(rescheduleDate, "dd/MM/yyyy") : <span>Chọn ngày khám</span>}
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={rescheduleDate}
-                    onSelect={(d) => d && setRescheduleDate(d)}
-                    locale={vi}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-on-surface-variant/60">Giờ bắt đầu</label>
-                <Select value={rescheduleStartTime} onValueChange={(v) => v && setRescheduleStartTime(v)}>
-                  <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-transparent">
-                    <SelectValue placeholder="Chọn giờ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"].map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-on-surface-variant/60">Giờ kết thúc</label>
-                <Select value={rescheduleEndTime} onValueChange={(v) => v && setRescheduleEndTime(v)}>
-                  <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-transparent">
-                    <SelectValue placeholder="Chọn giờ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"].map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-on-surface-variant/60">Phòng (Tuỳ chọn)</label>
-              <Select value={rescheduleRoom} onValueChange={(v) => v && setRescheduleRoom(v)}>
-                <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-transparent">
-                  <SelectValue placeholder="Chọn phòng" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["P.01", "P.02", "P.03", "P.04", "Phòng Phẫu Thuật"].map(r => (
-                    <SelectItem key={r} value={r}>{r}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRescheduleOpen(false)} className="rounded-xl">Hủy</Button>
-            <Button onClick={handleReschedule} className="rounded-xl bg-primary text-white hover:bg-primary/90">Xác nhận đổi</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RescheduleDialog
+        key={apt.date + "-" + apt.start + "-" + apt.end + "-" + isRescheduleOpen}
+        isOpen={isRescheduleOpen}
+        onOpenChange={setIsRescheduleOpen}
+        initialDate={apt.date}
+        initialStart={apt.start}
+        initialEnd={apt.end}
+        initialRoom={apt.room}
+        onConfirm={handleReschedule}
+      />
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmAction.isOpen} onOpenChange={(open) => setConfirmAction(prev => ({ ...prev, isOpen: open }))}>
@@ -477,6 +540,25 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Service Dialog */}
+      <AddServiceDialog
+        key={apt.items.length + "-" + isAddServiceOpen}
+        isOpen={isAddServiceOpen}
+        onOpenChange={setIsAddServiceOpen}
+        onConfirm={handleAddService}
+      />
+
+      {/* Payment Dialog */}
+      <PaymentDialog
+        key={remaining + "-" + isPaymentOpen}
+        isOpen={isPaymentOpen}
+        onOpenChange={setIsPaymentOpen}
+        total={total}
+        paid={apt.paid}
+        remaining={remaining}
+        onConfirm={handleConfirmPayment}
+      />
     </>
   )
 }
