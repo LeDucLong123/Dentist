@@ -17,6 +17,9 @@ import {
 import { fmtCurrency } from "@/lib/date-utils"
 import { PayslipModal } from "./_components/payslip-modal"
 import { toast } from "sonner"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import {
   Coins,
   ChevronRight,
@@ -29,30 +32,110 @@ import {
   CreditCard,
   CheckCircle,
   FileSpreadsheet,
+  Plus,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Info,
 } from "lucide-react"
 
+interface PayrollPeriod {
+  id: string              // Định dạng "YYYY-MM"
+  name: string            // Định dạng "Tháng MM/YYYY"
+  startDate: string
+  endDate: string
+  status: "draft" | "closed"
+  closedAt?: string
+  closedBy?: string
+  config: PayrollConfig
+  items?: any[]           // Lưu trữ danh sách tính toán lương cố định khi chốt
+}
+
+const defaultPeriods = (docs: any[]): PayrollPeriod[] => [
+  {
+    id: "2026-03",
+    name: "Tháng 03/2026",
+    startDate: "2026-03-01",
+    endDate: "2026-03-31",
+    status: "closed",
+    closedAt: "2026-04-05T10:00:00Z",
+    closedBy: "Kế toán trưởng",
+    config: DEFAULT_PAYROLL_CONFIG,
+    items: docs.map((doc) => getDoctorPayroll(doc, "2026-03", DEFAULT_PAYROLL_CONFIG))
+  },
+  {
+    id: "2026-04",
+    name: "Tháng 04/2026",
+    startDate: "2026-04-01",
+    endDate: "2026-04-30",
+    status: "closed",
+    closedAt: "2026-05-05T09:30:00Z",
+    closedBy: "Kế toán trưởng",
+    config: DEFAULT_PAYROLL_CONFIG,
+    items: docs.map((doc) => getDoctorPayroll(doc, "2026-04", DEFAULT_PAYROLL_CONFIG))
+  },
+  {
+    id: "2026-05",
+    name: "Tháng 05/2026",
+    startDate: "2026-05-01",
+    endDate: "2026-05-31",
+    status: "draft",
+    config: DEFAULT_PAYROLL_CONFIG
+  }
+]
+
 export default function PayrollPage() {
-  const [yearMonth, setYearMonth] = useState("2026-05")
-  const [config, setConfig] = useState<PayrollConfig>(DEFAULT_PAYROLL_CONFIG)
+  const [periods, setPeriods] = useState<PayrollPeriod[]>([])
+  const [selectedPeriodId, setSelectedPeriodId] = useState("2026-05")
   const [selectedDocPayroll, setSelectedDocPayroll] = useState<any | null>(null)
   const [isPayslipOpen, setIsPayslipOpen] = useState(false)
+  
+  // Dialog/Modal states
+  const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [newMonth, setNewMonth] = useState("2026-06")
 
-  // Load config from localStorage
+  // Load periods from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("payroll-config")
+      const saved = localStorage.getItem("payroll-periods")
       if (saved) {
-        setConfig(JSON.parse(saved))
+        setPeriods(JSON.parse(saved))
+      } else {
+        const initial = defaultPeriods(initialDoctors)
+        setPeriods(initial)
+        localStorage.setItem("payroll-periods", JSON.stringify(initial))
       }
-    } catch {}
+    } catch {
+      setPeriods(defaultPeriods(initialDoctors))
+    }
   }, [])
 
-  // Save config changes helper
+  // Find currently selected period
+  const selectedPeriod = useMemo(() => {
+    return periods.find((p) => p.id === selectedPeriodId) || periods[periods.length - 1]
+  }, [periods, selectedPeriodId])
+
+  // Get config of selected period (fallback to default if undefined)
+  const config = useMemo(() => {
+    return selectedPeriod?.config || DEFAULT_PAYROLL_CONFIG
+  }, [selectedPeriod])
+
+  // Save config changes for draft periods
   const handleConfigChange = (updated: Partial<PayrollConfig>) => {
-    const next = { ...config, ...updated }
-    setConfig(next)
+    if (!selectedPeriod || selectedPeriod.status === "closed") return
+    
+    const nextConfig = { ...selectedPeriod.config, ...updated }
+    const nextPeriods = periods.map((p) => {
+      if (p.id === selectedPeriod.id) {
+        return { ...p, config: nextConfig }
+      }
+      return p
+    })
+    
+    setPeriods(nextPeriods)
     try {
-      localStorage.setItem("payroll-config", JSON.stringify(next))
+      localStorage.setItem("payroll-periods", JSON.stringify(nextPeriods))
     } catch {}
   }
 
@@ -66,10 +149,15 @@ export default function PayrollPage() {
     handleConfigChange({ baseSalaries: nextBase })
   }
 
-  // Calculate payroll items for all doctors
+  // Calculate or retrieve payroll items
   const payrollItems = useMemo(() => {
-    return initialDoctors.map((doc) => getDoctorPayroll(doc, yearMonth, config))
-  }, [yearMonth, config])
+    if (!selectedPeriod) return []
+    if (selectedPeriod.status === "closed" && selectedPeriod.items) {
+      return selectedPeriod.items
+    }
+    // Draft: Calculate dynamically with current config
+    return initialDoctors.map((doc) => getDoctorPayroll(doc, selectedPeriod.id, selectedPeriod.config))
+  }, [selectedPeriod])
 
   // Aggregate stats
   const stats = useMemo(() => {
@@ -99,11 +187,71 @@ export default function PayrollPage() {
     }
   }, [payrollItems])
 
-  const [year, month] = yearMonth.split("-")
-  const formattedMonthLabel = `Tháng ${month}/${year}`
-
   const handleExportAll = () => {
-    toast.success(`Đã xuất bảng tổng hợp lương ${formattedMonthLabel} thành công.`)
+    toast.success(`Đã xuất bảng tổng hợp lương ${selectedPeriod?.name} thành công.`)
+  }
+
+  const handleClosePeriod = () => {
+    if (!selectedPeriod || selectedPeriod.status === "closed") return
+    
+    // Calculate final static items to freeze them
+    const itemsToFreeze = initialDoctors.map((doc) => 
+      getDoctorPayroll(doc, selectedPeriod.id, selectedPeriod.config)
+    )
+    
+    const nextPeriods = periods.map((p) => {
+      if (p.id === selectedPeriod.id) {
+        return {
+          ...p,
+          status: "closed" as const,
+          closedAt: new Date().toISOString(),
+          closedBy: "Quản trị viên",
+          items: itemsToFreeze
+        }
+      }
+      return p
+    })
+    
+    setPeriods(nextPeriods)
+    try {
+      localStorage.setItem("payroll-periods", JSON.stringify(nextPeriods))
+    } catch {}
+    
+    toast.success(`Đã chốt và đóng băng kỳ lương ${selectedPeriod.name} thành công.`)
+    setIsConfirmCloseOpen(false)
+  }
+
+  const handleCreatePeriod = () => {
+    const [y, m] = newMonth.split("-")
+    const formattedMonth = `Tháng ${m}/${y}`
+    
+    if (periods.some((p) => p.id === newMonth)) {
+      toast.error(`Kỳ lương ${formattedMonth} đã tồn tại trong hệ thống.`)
+      return
+    }
+    
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+    
+    const newPeriod: PayrollPeriod = {
+      id: newMonth,
+      name: formattedMonth,
+      startDate: `${newMonth}-01`,
+      endDate: `${newMonth}-${lastDay}`,
+      status: "draft",
+      config: { ...config } // Kế thừa cấu hình từ kỳ lương hiện tại
+    }
+    
+    const nextPeriods = [...periods, newPeriod]
+    nextPeriods.sort((a, b) => a.id.localeCompare(b.id))
+    
+    setPeriods(nextPeriods)
+    setSelectedPeriodId(newMonth)
+    try {
+      localStorage.setItem("payroll-periods", JSON.stringify(nextPeriods))
+    } catch {}
+    
+    toast.success(`Đã tạo kỳ lương nháp ${formattedMonth} thành công.`)
+    setIsCreateOpen(false)
   }
 
   return (
@@ -119,43 +267,86 @@ export default function PayrollPage() {
         </nav>
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-2xl border border-outline-variant/10 shadow-sm">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="p-2 rounded-xl bg-primary/10">
                 <Coins className="size-5 text-primary" />
               </div>
-              <h1 className="text-3xl font-extrabold text-blue-900 tracking-tight">Tính Lương Bác Sĩ</h1>
+              <h1 className="text-2xl font-extrabold text-blue-900 tracking-tight">Tính Lương Bác Sĩ</h1>
             </div>
-            <p className="text-sm text-on-surface-variant ml-[44px]">
-              Tính toán tiền lương, thù lao ca khám ngoài giờ cho bác sĩ dựa trên học hàm học vị.
+            <p className="text-xs text-on-surface-variant ml-[44px]">
+              Tính toán tiền lương, thù lao ca khám ngoài giờ cho bác sĩ dựa trên kỳ tính lương và giai đoạn.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             {/* Year Month Picker */}
-            <div className="flex items-center gap-2 bg-white border border-outline-variant/30 px-3 py-1.5 rounded-xl text-xs font-bold text-primary shadow-sm h-10">
+            <div className="flex items-center gap-2 bg-slate-50 border border-outline-variant/30 px-3 py-1.5 rounded-xl text-xs font-bold text-primary h-10">
               <Calendar className="size-4 text-primary" />
               <span className="font-semibold select-none">Kỳ công lương:</span>
               <select
-                value={yearMonth}
-                onChange={(e) => setYearMonth(e.target.value)}
+                value={selectedPeriodId}
+                onChange={(e) => setSelectedPeriodId(e.target.value)}
                 className="bg-transparent border-none outline-none font-bold text-primary focus:ring-0 cursor-pointer"
               >
-                {["2026-05", "2026-06", "2026-07"].map((m) => {
-                  const [y, mn] = m.split("-")
-                  return (
-                    <option key={m} value={m}>Tháng {mn}/{y}</option>
-                  )
-                })}
+                {periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.status === "closed" ? "(Đã chốt)" : "(Nháp)"}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <Button onClick={handleExportAll} className="bg-primary text-white h-10 px-5 shadow-md shadow-primary/25 hover:shadow-primary/40 font-semibold gap-2 border-transparent">
+            {/* Create new period */}
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              variant="outline"
+              className="border-outline-variant/30 text-on-surface-variant h-10 px-3.5 font-bold gap-1.5 rounded-xl hover:bg-slate-50 text-xs"
+            >
+              <Plus className="size-4" /> Tạo kỳ lương
+            </Button>
+
+            {/* Close period button */}
+            {selectedPeriod?.status === "draft" && (
+              <Button
+                onClick={() => setIsConfirmCloseOpen(true)}
+                className="bg-amber-600 text-white h-10 px-4 shadow-md shadow-amber-600/25 hover:shadow-amber-600/40 font-bold gap-1.5 border-transparent hover:bg-amber-500 text-xs transition-all"
+              >
+                <CheckCircle className="size-4" /> Chốt kỳ lương
+              </Button>
+            )}
+
+            <Button onClick={handleExportAll} className="bg-primary text-white h-10 px-4 shadow-md shadow-primary/25 hover:shadow-primary/40 font-bold gap-1.5 border-transparent text-xs">
               <FileSpreadsheet className="size-4" /> Xuất bảng kê
             </Button>
           </div>
         </div>
+
+        {/* State Banner */}
+        {selectedPeriod && (
+          selectedPeriod.status === "draft" ? (
+            <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Info className="size-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider">Trạng thái Nháp (Đang tính toán)</p>
+                <p className="text-xs text-amber-700/80 leading-relaxed">
+                  Số liệu tiền lương và ca khám ngoài giờ bên dưới là tạm tính. Bạn có thể thay đổi đơn giá, hệ số hoặc thêm ca khám mới. Hãy nhấn nút <strong>"Chốt kỳ lương"</strong> để khóa cấu hình và đóng băng số liệu lưu cố định vào cơ sở dữ liệu.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 animate-in fade-in slide-in-from-top-2 duration-300">
+              <CheckCircle className="size-5 text-emerald-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider">Trạng thái Đã Chốt (Đóng băng dữ liệu)</p>
+                <p className="text-xs text-emerald-700/80 leading-relaxed">
+                  Bảng lương này được chốt thành công vào {new Date(selectedPeriod.closedAt || "").toLocaleString("vi-VN")} bởi <strong>{selectedPeriod.closedBy}</strong>. Các số liệu đã được lưu trữ cố định vào DB và đóng băng để phục vụ thanh toán, không thay đổi ngay cả khi cấu hình hoặc ca khám hiện tại của hệ thống biến động.
+                </p>
+              </div>
+            </div>
+          )
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -167,7 +358,7 @@ export default function PayrollPage() {
           ].map((s, idx) => (
             <div key={idx} className={`rounded-2xl p-5 ${s.bg} border border-slate-100 flex flex-col justify-between h-28 shadow-sm`}>
               <p className="text-xs font-semibold text-on-surface-variant/70 leading-none">{s.label}</p>
-              <p className={`text-2xl font-black ${s.color} leading-none mt-2`}>{s.value}</p>
+              <p className={`text-xl font-black ${s.color} leading-none mt-2`}>{s.value}</p>
               <p className="text-[10px] text-slate-400 font-medium leading-none">{s.sub}</p>
             </div>
           ))}
@@ -178,7 +369,13 @@ export default function PayrollPage() {
           
           {/* Config column (LEFT) */}
           <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-5 space-y-4">
+            <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-5 space-y-4 relative overflow-hidden">
+              {selectedPeriod?.status === "closed" && (
+                <div className="absolute top-0 right-0 bg-emerald-500 text-white px-2 py-0.5 rounded-bl-lg text-[9px] font-bold flex items-center gap-1 shadow-sm">
+                  <Lock className="size-2.5" /> ĐÃ KHÓA
+                </div>
+              )}
+              
               <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-3">
                 <Settings className="size-4 text-violet-500" />
                 <h2 className="font-extrabold text-sm text-slate-900">Cấu hình Đơn giá & Hệ số</h2>
@@ -192,8 +389,9 @@ export default function PayrollPage() {
                   step={10000}
                   min={1000}
                   value={config.hourlyRate}
+                  disabled={selectedPeriod?.status === "closed"}
                   onChange={(e) => handleConfigChange({ hourlyRate: Math.max(0, parseInt(e.target.value) || 0) })}
-                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary"
+                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -208,8 +406,9 @@ export default function PayrollPage() {
                       step={0.1}
                       min={1}
                       value={val}
+                      disabled={selectedPeriod?.status === "closed"}
                       onChange={(e) => handleCoefChange(degree, Math.max(1, parseFloat(e.target.value) || 1))}
-                      className="w-16 h-8 text-center rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      className="w-16 h-8 text-center rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 ))}
@@ -226,8 +425,9 @@ export default function PayrollPage() {
                       step={500000}
                       min={0}
                       value={val}
+                      disabled={selectedPeriod?.status === "closed"}
                       onChange={(e) => handleBaseSalaryChange(role, Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full h-8 px-2 rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      className="w-full h-8 px-2 rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 ))}
@@ -241,7 +441,7 @@ export default function PayrollPage() {
               <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calculator className="size-4 text-primary" />
-                  <h2 className="font-bold text-sm text-on-surface">Bảng kê chi tiết tiền lương bác sĩ ({formattedMonthLabel})</h2>
+                  <h2 className="font-bold text-sm text-on-surface">Bảng kê chi tiết tiền lương bác sĩ ({selectedPeriod?.name})</h2>
                 </div>
               </div>
               
@@ -306,14 +506,83 @@ export default function PayrollPage() {
         </div>
       </div>
 
-      {/* Payslip Modal */}
-      <PayslipModal
-        isOpen={isPayslipOpen}
-        onOpenChange={setIsPayslipOpen}
-        payroll={selectedDocPayroll}
-        yearMonth={yearMonth}
-        hourlyRate={config.hourlyRate}
+      {/* Confirm dialog for closing payroll */}
+      <ConfirmDialog
+        open={isConfirmCloseOpen}
+        onClose={() => setIsConfirmCloseOpen(false)}
+        onConfirm={handleClosePeriod}
+        title="Xác nhận chốt kỳ lương?"
+        description={`Bạn có chắc chắn muốn chốt kỳ lương "${selectedPeriod?.name}"? Hệ thống sẽ đóng băng toàn bộ cấu hình đơn giá, hệ số, tiền lương cơ bản cùng danh sách ca khám ngoài giờ đã thực hiện của các bác sĩ. Sau khi chốt, dữ liệu sẽ được lưu cố định và không thể chỉnh sửa.`}
+        confirmText="Chốt kỳ lương"
+        cancelText="Hủy bỏ"
+        destructive={false}
       />
+
+      {/* Create New Period Modal */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-900 font-headline font-bold">
+              <Calendar className="size-5 text-primary" />
+              Tạo Kỳ Lương Mới
+            </DialogTitle>
+            <DialogDescription className="text-xs text-on-surface-variant">
+              Tạo giai đoạn tính lương mới ở trạng thái nháp để bắt đầu tính toán và đối soát.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 my-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">
+                Chọn tháng tính lương
+              </Label>
+              <Input
+                type="month"
+                value={newMonth}
+                onChange={(e) => setNewMonth(e.target.value)}
+                className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20 font-semibold"
+              />
+            </div>
+            
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 space-y-1.5">
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Lưu ý nghiệp vụ</p>
+              <ul className="space-y-1 text-xs text-blue-700/80 list-disc list-inside">
+                <li>Bảng lương mới được tạo mặc định ở trạng thái nháp.</li>
+                <li>Dữ liệu ca khám sẽ được quét tự động từ ngày bắt đầu đến ngày cuối cùng của tháng được chọn.</li>
+                <li>Cấu hình đơn giá và hệ số ban đầu sẽ được kế thừa từ kỳ lương hiện tại.</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateOpen(false)}
+              className="rounded-xl border-outline-variant/30 text-on-surface-variant h-10 font-bold"
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              onClick={handleCreatePeriod}
+              className="rounded-xl bg-primary hover:bg-primary/95 text-white font-bold px-5 border-transparent h-10"
+            >
+              Tạo kỳ lương
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payslip Modal */}
+      {selectedPeriod && (
+        <PayslipModal
+          isOpen={isPayslipOpen}
+          onOpenChange={setIsPayslipOpen}
+          payroll={selectedDocPayroll}
+          yearMonth={selectedPeriod.id}
+          hourlyRate={selectedPeriod.config.hourlyRate}
+        />
+      )}
     </>
   )
 }
+
