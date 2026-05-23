@@ -15,6 +15,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Topbar } from "@/components/topbar"
@@ -24,7 +25,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { DoctorBreadcrumb } from "./_components/doctor-breadcrumb"
 
-const initialDoctors = [
+export interface Doctor {
+  id: string
+  name: string
+  role: string
+  degree: string
+  specialty: string
+  phone: string
+  email: string
+  status: "active" | "locked"
+  badge: string
+}
+
+export const initialDoctors: Doctor[] = [
   {
     id: "1",
     name: "BS. Phạm Thành Nam",
@@ -285,6 +298,14 @@ export default function DoctorListPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
+                    <Link 
+                      href={`/doctors/${doctor.id}/history`}
+                      title="Xem lịch sử đi khám"
+                    >
+                      <Button variant="ghost" size="icon-sm" className="text-violet-600 hover:text-violet-850 hover:bg-violet-50 rounded-xl">
+                        <History className="size-4" />
+                      </Button>
+                    </Link>
                     <Link href={`/doctors/${doctor.id}/edit`}>
                       <Button
                         variant="ghost"

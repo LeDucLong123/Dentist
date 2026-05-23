@@ -16,6 +16,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +29,7 @@ import { toast } from "sonner"
 type UserRole = "all" | "Bệnh nhân" | "Bác sĩ" | "Quản trị" | "Lễ tân"
 type UserStatus = "active" | "locked"
 
-interface User {
+export interface User {
   id: string
   name: string
   email: string
@@ -39,7 +40,7 @@ interface User {
   joinDate: string
 }
 
-const initialUsers: User[] = [
+export const initialUsers: User[] = [
   {
     id: "1",
     name: "BS. Julian Pierce",
@@ -379,6 +380,16 @@ export default function UserListPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
+                    {(user.role === "Bệnh nhân" || user.role === "Bác sĩ") && (
+                      <Link 
+                        href={user.role === "Bệnh nhân" ? `/users/${user.id}/history` : `/doctors/${user.id}/history`}
+                        title={user.role === "Bệnh nhân" ? "Xem lịch sử được khám" : "Xem lịch sử đi khám"}
+                      >
+                        <Button variant="ghost" size="icon-sm" className="text-violet-600 hover:text-violet-850 hover:bg-violet-50 rounded-xl">
+                          <History className="size-4" />
+                        </Button>
+                      </Link>
+                    )}
                     <Link href={`/users/${user.id}/edit`}>
                       <Button variant="ghost" size="icon-sm" className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl">
                         <Edit2 className="size-4" />
