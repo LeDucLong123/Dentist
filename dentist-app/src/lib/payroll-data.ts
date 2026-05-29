@@ -3,6 +3,7 @@ import { APPOINTMENTS, getAppointmentDetail } from "./appointments-data"
 export interface PayrollConfig {
   hourlyRate: number
   coefDegree: Record<string, number>
+  weekendCoef: number
   baseSalaries: Record<string, number>
 }
 
@@ -17,11 +18,12 @@ export const DEFAULT_PAYROLL_CONFIG: PayrollConfig = {
     "Phó Giáo sư": 2.0,
     "Giáo sư": 2.5
   },
+  weekendCoef: 1.5,
   baseSalaries: {
-    "Trưởng khoa": 30000000,
-    "BS. Chính": 20000000,
-    "BS. Phụ": 12000000,
-    "Bác sĩ": 15000000
+    "Trưởng khoa": 0,
+    "BS. Chính": 0,
+    "BS. Phụ": 0,
+    "Bác sĩ": 0
   }
 }
 
@@ -49,8 +51,11 @@ export interface DoctorPayrollItem {
   role: string
   degree: string
   coefficient: number
+  weekendCoef: number
   baseSalary: number
   appointmentsCount: number
+  actualHours: number
+  convertedHours: number
   overtimeHours: number
   overtimePay: number
   allowance: number
@@ -76,27 +81,33 @@ export function getDoctorPayroll(
   }).map(a => getAppointmentDetail(a.id))
 
   // Calculate hours and pay
-  let overtimeHours = 0
-  let overtimePay = 0
+  let actualHours = 0
+  let convertedHours = 0
+  let totalPay = 0
   
   const coefficient = config.coefDegree[doctor.degree] ?? 1.3
-  const baseSalary = config.baseSalaries[doctor.role] ?? config.baseSalaries["Bác sĩ"]
+  const weekendCoef = config.weekendCoef ?? 1.5
 
   completedApts.forEach((apt) => {
     const hours = calcAptDuration(apt.start, apt.end)
-    overtimeHours += hours
-    overtimePay += coefficient * config.hourlyRate * hours
+    const [y, m, d] = apt.date.split("-").map(Number)
+    const dayOfWeek = new Date(y, m - 1, d).getDay()
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+    const shiftCoef = isWeekend ? weekendCoef : 1.0
+    
+    const converted = hours * shiftCoef
+    const pay = converted * coefficient * config.hourlyRate
+    
+    actualHours += hours
+    convertedHours += converted
+    totalPay += pay
   })
 
-  // Fixed allowances for demonstration
-  let allowance = 0
-  if (doctor.role === "Trưởng khoa") allowance = 3000000
-  else if (doctor.role === "BS. Chính") allowance = 1500000
-
-  // Fixed deduction (taxes/insurance)
-  const deduction = Math.round((baseSalary + overtimePay + allowance) * 0.1) // 10% tax/insurance
-
-  const netSalary = baseSalary + overtimePay + allowance - deduction
+  // Mandatory constraints: base salary, allowance, deductions are exactly 0
+  const baseSalary = 0
+  const allowance = 0
+  const deduction = 0
+  const netSalary = Math.round(totalPay)
 
   return {
     doctorId: doctor.id,
@@ -104,10 +115,13 @@ export function getDoctorPayroll(
     role: doctor.role,
     degree: doctor.degree,
     coefficient,
+    weekendCoef,
     baseSalary,
     appointmentsCount: completedApts.length,
-    overtimeHours,
-    overtimePay,
+    actualHours,
+    convertedHours,
+    overtimeHours: convertedHours, // Keep for backward compatibility
+    overtimePay: netSalary,
     allowance,
     deduction,
     netSalary

@@ -100,7 +100,21 @@ export default function PayrollPage() {
     try {
       const saved = localStorage.getItem("payroll-periods")
       if (saved) {
-        setPeriods(JSON.parse(saved))
+        const parsed = JSON.parse(saved)
+        // Safe migration to ensure weekendCoef exists in loaded configs
+        const migrated = parsed.map((p: any) => ({
+          ...p,
+          config: {
+            ...DEFAULT_PAYROLL_CONFIG,
+            ...p.config,
+            coefDegree: {
+              ...DEFAULT_PAYROLL_CONFIG.coefDegree,
+              ...(p.config?.coefDegree || {})
+            }
+          }
+        }))
+        setPeriods(migrated)
+        localStorage.setItem("payroll-periods", JSON.stringify(migrated))
       } else {
         const initial = defaultPeriods(initialDoctors)
         setPeriods(initial)
@@ -144,6 +158,10 @@ export default function PayrollPage() {
     handleConfigChange({ coefDegree: nextCoefs })
   }
 
+  const handleWeekendCoefChange = (value: number) => {
+    handleConfigChange({ weekendCoef: value })
+  }
+
   const handleBaseSalaryChange = (role: string, value: number) => {
     const nextBase = { ...config.baseSalaries, [role]: value }
     handleConfigChange({ baseSalaries: nextBase })
@@ -163,16 +181,14 @@ export default function PayrollPage() {
   const stats = useMemo(() => {
     let totalNet = 0
     let totalApts = 0
-    let totalHours = 0
-    let totalBase = 0
-    let totalOvertime = 0
+    let totalActualHours = 0
+    let totalConvertedHours = 0
 
     payrollItems.forEach((p) => {
       totalNet += p.netSalary
       totalApts += p.appointmentsCount
-      totalHours += p.overtimeHours
-      totalBase += p.baseSalary
-      totalOvertime += p.overtimePay
+      totalActualHours += (p.actualHours ?? p.overtimeHours)
+      totalConvertedHours += (p.convertedHours ?? p.overtimeHours)
     })
 
     const avgNet = payrollItems.length > 0 ? totalNet / payrollItems.length : 0
@@ -180,9 +196,8 @@ export default function PayrollPage() {
     return {
       totalNet,
       totalApts,
-      totalHours,
-      totalBase,
-      totalOvertime,
+      totalActualHours,
+      totalConvertedHours,
       avgNet
     }
   }, [payrollItems])
@@ -351,9 +366,9 @@ export default function PayrollPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
-            { label: "Tổng quỹ lương thực lĩnh", value: fmtCurrency(stats.totalNet), sub: `Lương cơ bản: ${fmtCurrency(stats.totalBase)}`, color: "text-blue-900", bg: "bg-blue-50/50" },
-            { label: "Tổng số ca khám hoàn thành", value: `${stats.totalApts} ca`, sub: `Tổng số giờ: ${stats.totalHours.toFixed(1)} h`, color: "text-emerald-700", bg: "bg-emerald-50/50" },
-            { label: "Quỹ thưởng ngoài giờ (Overtime)", value: fmtCurrency(stats.totalOvertime), sub: `Đơn giá chuẩn: ${fmtCurrency(config.hourlyRate)}/h`, color: "text-violet-750", bg: "bg-violet-50/50" },
+            { label: "Tổng quỹ lương thực lĩnh", value: fmtCurrency(stats.totalNet), sub: "Không phụ cấp & khấu trừ", color: "text-blue-900", bg: "bg-blue-50/50" },
+            { label: "Tổng số ca khám hoàn thành", value: `${stats.totalApts} ca`, sub: `Tổng giờ thực tế: ${stats.totalActualHours.toFixed(1)} h`, color: "text-emerald-700", bg: "bg-emerald-50/50" },
+            { label: "Tổng số giờ quy đổi", value: `${stats.totalConvertedHours.toFixed(1)} h`, sub: `Đơn giá thù lao: ${fmtCurrency(config.hourlyRate)}/h`, color: "text-violet-750", bg: "bg-violet-50/50" },
             { label: "Lương bác sĩ trung bình", value: fmtCurrency(stats.avgNet), sub: `Tính trên ${payrollItems.length} bác sĩ`, color: "text-amber-800", bg: "bg-amber-50/50" },
           ].map((s, idx) => (
             <div key={idx} className={`rounded-2xl p-5 ${s.bg} border border-slate-100 flex flex-col justify-between h-28 shadow-sm`}>
@@ -395,8 +410,22 @@ export default function PayrollPage() {
                 />
               </div>
 
+              {/* Weekend Coefficient */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hệ số ca cuối tuần (T7/CN)</label>
+                <Input
+                  type="number"
+                  step={0.1}
+                  min={1}
+                  value={config.weekendCoef ?? 1.5}
+                  disabled={selectedPeriod?.status === "closed"}
+                  onChange={(e) => handleWeekendCoefChange(Math.max(1, parseFloat(e.target.value) || 1))}
+                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+              </div>
+
               {/* Coefficients */}
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-2 border-t border-outline-variant/5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Hệ số Học hàm/Học vị</label>
                 {Object.entries(config.coefDegree).map(([degree, val]) => (
                   <div key={degree} className="flex items-center justify-between gap-3 bg-slate-50/50 p-2 rounded-xl">
@@ -409,25 +438,6 @@ export default function PayrollPage() {
                       disabled={selectedPeriod?.status === "closed"}
                       onChange={(e) => handleCoefChange(degree, Math.max(1, parseFloat(e.target.value) || 1))}
                       className="w-16 h-8 text-center rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Base salaries config */}
-              <div className="space-y-3 pt-2 border-t border-outline-variant/5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Lương cơ bản theo chức danh</label>
-                {Object.entries(config.baseSalaries).map(([role, val]) => (
-                  <div key={role} className="flex flex-col gap-1 bg-slate-50/50 p-2.5 rounded-xl">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">{role}</span>
-                    <input
-                      type="number"
-                      step={500000}
-                      min={0}
-                      value={val}
-                      disabled={selectedPeriod?.status === "closed"}
-                      onChange={(e) => handleBaseSalaryChange(role, Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full h-8 px-2 rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 ))}
@@ -450,11 +460,11 @@ export default function PayrollPage() {
                   <thead>
                     <tr className="border-b border-outline-variant/10 bg-slate-50/40 text-[10px] font-bold text-slate-500 uppercase">
                       <th className="px-6 py-4">Bác sĩ</th>
-                      <th className="px-6 py-4 text-center">Hệ số</th>
-                      <th className="px-6 py-4 text-right">Lương cơ bản</th>
-                      <th className="px-6 py-4 text-center">Số ca (Giờ)</th>
-                      <th className="px-6 py-4 text-right">Tiền làm thêm</th>
-                      <th className="px-6 py-4 text-right">Phụ cấp/Trừ</th>
+                      <th className="px-6 py-4 text-center">Hệ số BS</th>
+                      <th className="px-6 py-4 text-center">Số ca</th>
+                      <th className="px-6 py-4 text-center">Giờ thực tế</th>
+                      <th className="px-6 py-4 text-center">Giờ quy đổi</th>
+                      <th className="px-6 py-4 text-right">Đơn giá/giờ</th>
                       <th className="px-6 py-4 text-right">Thực lĩnh</th>
                       <th className="px-6 py-4 text-center">Thao tác</th>
                     </tr>
@@ -467,16 +477,10 @@ export default function PayrollPage() {
                           <p className="text-[10px] text-slate-400 font-semibold">{p.role} · {p.degree}</p>
                         </td>
                         <td className="px-6 py-3.5 text-center font-mono font-bold text-slate-600">{p.coefficient}</td>
-                        <td className="px-6 py-3.5 text-right font-medium text-slate-700">{fmtCurrency(p.baseSalary)}</td>
-                        <td className="px-6 py-3.5 text-center">
-                          <span className="font-bold text-slate-800">{p.appointmentsCount} ca</span>
-                          <span className="text-[10px] text-slate-400 block">({p.overtimeHours.toFixed(1)} h)</span>
-                        </td>
-                        <td className="px-6 py-3.5 text-right font-bold text-emerald-600">+{fmtCurrency(p.overtimePay)}</td>
-                        <td className="px-6 py-3.5 text-right">
-                          <p className="text-emerald-600 font-medium">+{fmtCurrency(p.allowance)}</p>
-                          <p className="text-red-500 font-medium">-{fmtCurrency(p.deduction)}</p>
-                        </td>
+                        <td className="px-6 py-3.5 text-center font-bold text-slate-800">{p.appointmentsCount} ca</td>
+                        <td className="px-6 py-3.5 text-center font-mono font-medium text-slate-600">{(p.actualHours ?? p.overtimeHours).toFixed(1)} h</td>
+                        <td className="px-6 py-3.5 text-center font-mono font-bold text-blue-600">{(p.convertedHours ?? p.overtimeHours).toFixed(1)} h</td>
+                        <td className="px-6 py-3.5 text-right font-medium text-slate-500">{fmtCurrency(config.hourlyRate)}</td>
                         <td className="px-6 py-3.5 text-right font-black text-primary text-sm">{fmtCurrency(p.netSalary)}</td>
                         <td className="px-6 py-3.5 text-center">
                           <Button
@@ -499,7 +503,7 @@ export default function PayrollPage() {
             </div>
 
             <div className="p-4 bg-slate-50/50 border-t border-outline-variant/10 text-[11px] text-slate-500 font-medium flex items-center justify-between">
-              <span>* Khấu trừ đã bao gồm 10% thuế TNCN và các chi phí bảo hiểm bắt buộc trên tổng thu nhập.</span>
+              <span>* Lương được tính chính xác theo thù lao ca khám: Giờ quy đổi * Hệ số bác sĩ * Đơn giá/giờ. Không áp dụng thuế, bảo hiểm, phụ cấp hay lương cơ bản.</span>
               <span className="text-primary font-bold">Clinical Serenity System v1.0</span>
             </div>
           </div>
@@ -512,7 +516,7 @@ export default function PayrollPage() {
         onClose={() => setIsConfirmCloseOpen(false)}
         onConfirm={handleClosePeriod}
         title="Xác nhận chốt kỳ lương?"
-        description={`Bạn có chắc chắn muốn chốt kỳ lương "${selectedPeriod?.name}"? Hệ thống sẽ đóng băng toàn bộ cấu hình đơn giá, hệ số, tiền lương cơ bản cùng danh sách ca khám ngoài giờ đã thực hiện của các bác sĩ. Sau khi chốt, dữ liệu sẽ được lưu cố định và không thể chỉnh sửa.`}
+        description={`Bạn có chắc chắn muốn chốt kỳ lương "${selectedPeriod?.name}"? Hệ thống sẽ đóng băng toàn bộ cấu hình đơn giá, hệ số bác sĩ, hệ số cuối tuần cùng danh sách ca khám đã thực hiện của các bác sĩ. Sau khi chốt, dữ liệu sẽ được lưu cố định và không thể chỉnh sửa.`}
         confirmText="Chốt kỳ lương"
         cancelText="Hủy bỏ"
         destructive={false}

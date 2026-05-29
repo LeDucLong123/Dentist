@@ -93,7 +93,7 @@ export function PayslipModal({
                 <p className="text-2xl font-extrabold text-blue-900 leading-none">{fmtCurrency(payroll.netSalary)}</p>
                 <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Thực nhận</span>
               </div>
-              <p className="text-[10px] text-slate-400">Đã khấu trừ bảo hiểm & thuế TNCN (10%).</p>
+              <p className="text-[10px] text-slate-400">Tính chính xác theo thù lao ca làm việc ngoài giờ.</p>
             </div>
           </div>
 
@@ -101,32 +101,37 @@ export function PayslipModal({
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <FileText className="size-3.5 text-primary" />
-              Chi tiết khoản lương
+              Chi tiết các chỉ số thù lao
             </h4>
             <div className="rounded-xl border border-outline-variant/10 overflow-hidden text-xs">
               <div className="grid grid-cols-2 p-3 bg-slate-50 border-b border-outline-variant/10 font-bold text-slate-500">
-                <span>Khoản mục</span>
-                <span className="text-right">Số tiền (VND)</span>
+                <span>Khoản mục / Chỉ số</span>
+                <span className="text-right">Giá trị</span>
               </div>
-              <div className="divide-y divide-outline-variant/5">
+              <div className="divide-y divide-outline-variant/5 text-slate-700">
                 <div className="grid grid-cols-2 p-3">
-                  <span className="text-slate-600 font-medium">Lương cơ bản</span>
-                  <span className="text-right font-bold text-slate-800">{fmtCurrency(payroll.baseSalary)}</span>
+                  <span className="font-medium">Tổng số ca khám hoàn thành</span>
+                  <span className="text-right font-bold">{payroll.appointmentsCount} ca</span>
                 </div>
                 <div className="grid grid-cols-2 p-3 bg-slate-50/30">
-                  <div>
-                    <span className="text-slate-600 font-medium">Lương làm thêm ngoài giờ</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">({payroll.appointmentsCount} ca · {payroll.overtimeHours.toFixed(1)} giờ)</p>
-                  </div>
-                  <span className="text-right font-bold text-slate-800">+{fmtCurrency(payroll.overtimePay)}</span>
+                  <span className="font-medium">Tổng số giờ làm việc thực tế</span>
+                  <span className="text-right font-bold">{(payroll.actualHours ?? payroll.overtimeHours).toFixed(1)} h</span>
                 </div>
                 <div className="grid grid-cols-2 p-3">
-                  <span className="text-slate-600 font-medium">Phụ cấp chức danh</span>
-                  <span className="text-right font-bold text-slate-800">+{fmtCurrency(payroll.allowance)}</span>
+                  <span className="font-medium">Tổng số giờ quy đổi (áp dụng hệ số ca)</span>
+                  <span className="text-right font-bold text-blue-600">{(payroll.convertedHours ?? payroll.overtimeHours).toFixed(1)} h</span>
                 </div>
-                <div className="grid grid-cols-2 p-3 bg-red-50/30">
-                  <span className="text-red-700 font-medium">Khấu trừ (10% Thuế & BH)</span>
-                  <span className="text-right font-bold text-red-600">-{fmtCurrency(payroll.deduction)}</span>
+                <div className="grid grid-cols-2 p-3 bg-slate-50/30">
+                  <span className="font-medium">Hệ số bác sĩ (Học hàm/Học vị)</span>
+                  <span className="text-right font-bold text-violet-600">x{payroll.coefficient} ({payroll.degree})</span>
+                </div>
+                <div className="grid grid-cols-2 p-3">
+                  <span className="font-medium">Đơn giá thù lao chuẩn</span>
+                  <span className="text-right font-bold">{fmtCurrency(hourlyRate)}/h</span>
+                </div>
+                <div className="grid grid-cols-2 p-3 bg-blue-50/20 font-bold text-blue-900">
+                  <span>Thực lĩnh (Giờ quy đổi * Hệ số BS * Đơn giá)</span>
+                  <span className="text-right text-sm">{fmtCurrency(payroll.netSalary)}</span>
                 </div>
               </div>
             </div>
@@ -145,31 +150,54 @@ export function PayslipModal({
                     <th className="px-4 py-3">Mã ca</th>
                     <th className="px-4 py-3">Ngày</th>
                     <th className="px-4 py-3">Bệnh nhân</th>
-                    <th className="px-4 py-3">Dịch vụ</th>
-                    <th className="px-4 py-3 text-center">Số giờ</th>
+                    <th className="px-4 py-3 text-center">Giờ thực tế</th>
+                    <th className="px-4 py-3 text-center">Hệ số ca</th>
+                    <th className="px-4 py-3 text-center">Giờ quy đổi</th>
                     <th className="px-4 py-3 text-right">Tạm tính</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/5">
                   {doctorAppointments.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400 italic">
+                      <td colSpan={7} className="py-6 text-center text-slate-400 italic">
                         Không có ca khám hoàn thành trong tháng này.
                       </td>
                     </tr>
                   ) : (
                     doctorAppointments.map((apt) => {
                       const duration = calcAptDuration(apt.start, apt.end)
-                      const aptPay = payroll.coefficient * hourlyRate * duration
+                      const [y, m, d] = apt.date.split("-").map(Number)
+                      const dayOfWeek = new Date(y, m - 1, d).getDay()
+                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+                      const shiftCoef = isWeekend ? (payroll.weekendCoef ?? 1.5) : 1.0
+                      const converted = duration * shiftCoef
+                      const aptPay = payroll.coefficient * hourlyRate * converted
                       return (
                         <tr key={apt.id} className="hover:bg-slate-50/50">
                           <td className="px-4 py-2.5 font-mono font-bold text-slate-500">{apt.id}</td>
                           <td className="px-4 py-2.5">
-                            {new Date(apt.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}
+                            <span className="font-semibold">{new Date(y, m - 1, d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}</span>
+                            <span className="text-[10px] text-slate-400 block font-medium">
+                              {isWeekend ? (dayOfWeek === 6 ? "Thứ 7" : "Chủ Nhật") : "Ngày thường"}
+                            </span>
                           </td>
                           <td className="px-4 py-2.5 font-semibold text-slate-700">{apt.patient}</td>
-                          <td className="px-4 py-2.5 text-slate-600 truncate max-w-[120px]">{apt.service}</td>
-                          <td className="px-4 py-2.5 text-center font-mono font-medium">{duration.toFixed(1)} h</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className="font-mono font-bold text-slate-800">{duration.toFixed(1)} h</span>
+                            <span className="text-[10px] text-slate-400 block font-mono">({apt.start} - {apt.end})</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {isWeekend ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                x{shiftCoef.toFixed(1)} (Cuối tuần)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                                x1.0
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-mono font-bold text-blue-600">{converted.toFixed(1)} h</td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-600">+{fmtCurrency(aptPay)}</td>
                         </tr>
                       )
