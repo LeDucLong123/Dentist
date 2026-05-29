@@ -12,7 +12,8 @@ import {
   ArrowLeft,
   Info,
   Clock,
-  Sparkles
+  Sparkles,
+  Lock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Topbar } from "@/components/topbar"
@@ -61,7 +62,26 @@ export default function WeeklyShiftsPage() {
     return `${format(weekDates[0])} - ${format(weekDates[6])}`
   }, [weekDates])
 
+  // Helper check if date is past
+  const isPastDay = (dayIndex: number) => {
+    const idx = dayIndex === 0 ? 6 : dayIndex - 1
+    const date = weekDates[idx]
+    if (!date) return false
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const compareDate = new Date(date)
+    compareDate.setHours(0, 0, 0, 0)
+    
+    return compareDate < today
+  }
+
   const handleShiftChange = (doctorId: string, dayOfWeek: number, shift: ShiftType) => {
+    if (isPastDay(dayOfWeek)) {
+      toast.error("Không thể thay đổi ca trực của ngày đã qua!")
+      return
+    }
     setWeeklyDuty((prev) => {
       const doctorSchedule = prev[doctorId] || {}
       const daySchedule = doctorSchedule[dayOfWeek] || { room: "" }
@@ -99,22 +119,31 @@ export default function WeeklyShiftsPage() {
       "BS004": { 1: "off", 2: "full_day", 3: "afternoon", 4: "morning", 5: "off", 6: "full_day", 0: "off" },
     }
 
+    let modifiedCount = 0
     initialDoctors.forEach((doc) => {
       if (!nextDuty[doc.id]) {
         nextDuty[doc.id] = {}
       }
       days.forEach((day) => {
-        const assignedShift = schedules[doc.id]?.[day] || "off"
-        nextDuty[doc.id][day] = {
-          shift: assignedShift,
-          room: ""
+        if (!isPastDay(day)) {
+          const assignedShift = schedules[doc.id]?.[day] || "off"
+          nextDuty[doc.id][day] = {
+            shift: assignedShift,
+            room: nextDuty[doc.id][day]?.room || ""
+          }
+          modifiedCount++
         }
       })
     })
 
+    if (modifiedCount === 0) {
+      toast.warning("Không có ngày nào trong tuần này có thể sắp xếp (tất cả đã qua)!")
+      return
+    }
+
     setWeeklyDuty(nextDuty)
     toast.success("Tự động sắp xếp ca trực hoàn tất!", {
-      description: "Hệ thống đã phân bổ ca trực tối ưu cho các bác sĩ. Hãy bấm 'Lưu lịch trực' để áp dụng."
+      description: "Hệ thống đã phân bổ ca trực cho các ngày chưa qua. Hãy bấm 'Lưu lịch trực' để áp dụng."
     })
   }
 
@@ -222,7 +251,7 @@ export default function WeeklyShiftsPage() {
           <div className="space-y-1">
             <p className="text-xs font-bold uppercase tracking-wider">Hướng dẫn nghiệp vụ</p>
             <p className="text-xs text-blue-700/85 leading-relaxed">
-              Lịch trực ở đây là lịch trực lặp lại cố định hàng tuần. Thay đổi tại bảng này sẽ lập tức cập nhật trạng thái làm việc của bác sĩ khi đặt lịch khám mới. Bấm <strong>"Lưu lịch trực"</strong> để áp dụng các thay đổi xuống hệ thống.
+              Lịch trực ở đây là lịch trực lặp lại cố định hàng tuần. Thay đổi tại bảng này sẽ lập tức cập nhật trạng thái làm việc của bác sĩ khi đặt lịch khám mới. <strong>Các ca trực của những ngày đã qua trong quá khứ sẽ bị khóa và không thể chỉnh sửa.</strong> Bấm <strong>"Lưu lịch trực"</strong> để áp dụng các thay đổi xuống hệ thống.
             </p>
           </div>
         </div>
@@ -237,9 +266,23 @@ export default function WeeklyShiftsPage() {
                   {weekdayHeaders.map((head, idx) => {
                     const date = weekDates[idx]
                     const formattedDate = date ? date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : ""
+                    const isPast = date ? (() => {
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      const compareDate = new Date(date)
+                      compareDate.setHours(0, 0, 0, 0)
+                      return compareDate < today
+                    })() : false
                     return (
-                      <th key={head.dayIndex} className="px-4 py-4 text-center">
-                        <p className="font-bold">{head.label}</p>
+                      <th key={head.dayIndex} className={cn("px-4 py-4 text-center transition-all", isPast && "bg-slate-50/50 opacity-70")}>
+                        <div className="flex items-center justify-center gap-1">
+                          <p className="font-bold text-slate-700">{head.label}</p>
+                          {isPast && (
+                            <span title="Ngày đã qua (Không thể chỉnh sửa)">
+                              <Lock className="size-3 text-slate-400" />
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[9px] text-slate-400 font-mono mt-0.5">({formattedDate})</p>
                       </th>
                     )
@@ -261,17 +304,27 @@ export default function WeeklyShiftsPage() {
                       </div>
                     </td>
                     
-                    {weekdayHeaders.map((head) => {
+                    {weekdayHeaders.map((head, idx) => {
                       const schedule = weeklyDuty[doc.id]?.[head.dayIndex] || { shift: "off", room: "" }
+                      const date = weekDates[idx]
+                      const isPast = date ? (() => {
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const compareDate = new Date(date)
+                        compareDate.setHours(0, 0, 0, 0)
+                        return compareDate < today
+                      })() : false
                       return (
                         <td key={head.dayIndex} className="px-2 py-3 text-center">
                           <div className="flex items-center max-w-[130px] mx-auto h-9">
                             {/* Shift Type Select */}
                             <select
                               value={schedule.shift}
+                              disabled={isPast}
                               onChange={(e) => handleShiftChange(doc.id, head.dayIndex, e.target.value as ShiftType)}
                               className={cn(
-                                "w-full text-center py-1.5 px-2.5 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer",
+                                "w-full text-center py-1.5 px-2.5 rounded-lg text-xs font-bold outline-none border transition-all",
+                                isPast ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                                 schedule.shift === "off"
                                   ? "bg-slate-50 text-slate-400 border-slate-200"
                                   : schedule.shift === "morning"
