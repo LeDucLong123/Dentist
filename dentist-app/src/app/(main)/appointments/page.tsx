@@ -136,13 +136,16 @@ export default function AppointmentsPage() {
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button 
-              variant="outline" 
-              className="h-9 px-4 rounded-xl border-outline-variant/30 text-on-surface-variant text-sm font-semibold gap-2 hover:text-primary hover:border-primary/30"
-            >
-              <Sparkles className="size-4 text-amber-500" />
-              Tự động sắp xếp
-            </Button>
+
+            <Link href="/appointments/shifts">
+              <Button 
+                variant="outline" 
+                className="h-9 px-4 rounded-xl border-outline-variant/30 text-on-surface-variant text-sm font-semibold gap-2 hover:text-primary hover:border-primary/30"
+              >
+                <CalendarRange className="size-4 text-emerald-500" />
+                Lịch trực bác sĩ
+              </Button>
+            </Link>
             
             <Link href="/appointments/requests">
               <Button 

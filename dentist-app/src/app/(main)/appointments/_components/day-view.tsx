@@ -9,7 +9,8 @@ import {
   Clock, 
   User, 
   CreditCard,
-  CheckCircle2
+  CheckCircle2,
+  Stethoscope
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { StatusBadge } from "@/components/status-badge"
@@ -27,6 +28,7 @@ import {
   START_HOUR, 
   PX_PER_MIN 
 } from "@/lib/date-utils"
+import { getDutyShiftsForDate } from "@/lib/duty-data"
 
 interface DayViewProps {
   selectedDate: Date
@@ -49,6 +51,10 @@ export function DayView({
     year: selectedDate.getFullYear(), 
     month: selectedDate.getMonth() 
   })
+
+  const dayDutyShifts = useMemo(() => {
+    return getDutyShiftsForDate(selectedDate)
+  }, [selectedDate])
 
   // Grouped for calendar dot indicators
   const monthAptMap = useMemo(() => {
@@ -96,8 +102,81 @@ export function DayView({
     )
 
   return (
-    <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden">
-      {/* Day header */}
+    <div className="space-y-6">
+      {/* On-duty Doctors Header Card */}
+      <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-6 space-y-4 animate-in fade-in duration-300">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-800 border-b border-outline-variant/10 pb-3">
+          <Stethoscope className="size-4 text-emerald-500 animate-pulse" />
+          <span>Bác sĩ trực hôm nay:</span>
+        </div>
+        
+        {dayDutyShifts.length === 0 ? (
+          <p className="text-xs text-on-surface-variant/45 italic">Không có bác sĩ nào trực hôm nay</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Ca Sáng */}
+            <div className="bg-slate-50/50 p-4 rounded-xl border border-emerald-100/70 shadow-sm space-y-2">
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-emerald-100/30 pb-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Ca Sáng (08:00 - 12:00)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {dayDutyShifts.filter(s => s.shift === "morning").length === 0 ? (
+                  <span className="text-[10px] text-slate-400 italic">Trống</span>
+                ) : (
+                  dayDutyShifts.filter(s => s.shift === "morning").map(s => (
+                    <span key={s.doctorId} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-slate-700 text-xs font-bold shadow-sm">
+                      {s.doctorName}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Ca Chiều */}
+            <div className="bg-slate-50/50 p-4 rounded-xl border border-blue-100/70 shadow-sm space-y-2">
+              <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-blue-100/30 pb-1.5">
+                <span className="size-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Ca Chiều (13:30 - 17:30)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {dayDutyShifts.filter(s => s.shift === "afternoon").length === 0 ? (
+                  <span className="text-[10px] text-slate-400 italic">Trống</span>
+                ) : (
+                  dayDutyShifts.filter(s => s.shift === "afternoon").map(s => (
+                    <span key={s.doctorId} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-100 text-slate-700 text-xs font-bold shadow-sm">
+                      {s.doctorName}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Cả Ngày */}
+            <div className="bg-slate-50/50 p-4 rounded-xl border border-indigo-100/70 shadow-sm space-y-2">
+              <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-indigo-100/30 pb-1.5">
+                <span className="size-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                Cả Ngày (08:00 - 17:30)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {dayDutyShifts.filter(s => s.shift === "full_day").length === 0 ? (
+                  <span className="text-[10px] text-slate-400 italic">Trống</span>
+                ) : (
+                  dayDutyShifts.filter(s => s.shift === "full_day").map(s => (
+                    <span key={s.doctorId} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-slate-700 text-xs font-bold shadow-sm">
+                      {s.doctorName}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Main Calendar Card */}
+      <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden">
+        {/* Day header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30">
         <button 
           onClick={prevDay} 
@@ -219,6 +298,8 @@ export function DayView({
           <ChevronRight className="size-4" />
         </button>
       </div>
+
+
 
       {/* Absolute-positioned timeline */}
       <div className="flex overflow-x-auto">
@@ -369,6 +450,7 @@ export function DayView({
           )
         })()}
       </div>
+    </div>
     </div>
   )
 }

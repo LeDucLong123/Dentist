@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,6 +27,7 @@ import {
   CalendarDays,
   ChevronRight,
   Trash2,
+  AlertTriangle,
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -36,6 +37,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { SearchCombobox } from "@/components/search-combobox"
 import { PATIENTS, DOCTORS } from "@/lib/appointments-data"
 import { ServicesTable } from "./_components/services-table"
+import { checkDoctorDuty } from "@/lib/duty-data"
 
 export default function NewAppointmentPage() {
   const [selectedPatient, setSelectedPatient] = useState<typeof PATIENTS[0] | null>(null)
@@ -54,6 +56,15 @@ export default function NewAppointmentPage() {
   ])
   
   const [discount, setDiscount] = useState(0)
+
+  const dutyWarning = useMemo(() => {
+    if (!selectedDoctor || !date || !startTime) return null
+    const result = checkDoctorDuty(selectedDoctor.name, date, startTime)
+    if (!result.hasDuty) {
+      return result.message
+    }
+    return null
+  }, [selectedDoctor, date, startTime])
 
   const patientItems = PATIENTS.map((p) => ({ id: p.id, name: p.name, sub: p.phone }))
   const doctorItems = DOCTORS.map((d) => ({ id: d.id, name: d.name, sub: d.specialty }))
@@ -269,6 +280,13 @@ export default function NewAppointmentPage() {
                     <Phone className="size-3.5 text-on-surface-variant/40 shrink-0" />
                     <span className="font-medium text-on-surface">{selectedDoctor.phone}</span>
                   </div>
+
+                  {dutyWarning && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold flex items-start gap-2 animate-in fade-in duration-200">
+                      <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                      <span className="leading-normal">{dutyWarning}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
