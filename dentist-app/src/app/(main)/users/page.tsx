@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import {
   Plus,
@@ -138,7 +138,8 @@ const SORT_OPTIONS = ["Tên (A-Z)", "Vai trò", "Hoạt động gần nhất"]
 const ROLE_FILTERS: UserRole[] = ["all", "Bác sĩ", "Bệnh nhân", "Quản trị", "Lễ tân"]
 
 export default function UserListPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers)
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<UserRole>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [sortKey, setSortKey] = useState("Tên (A-Z)")
@@ -147,6 +148,23 @@ export default function UserListPage() {
   const [lockDialog, setLockDialog] = useState<{ open: boolean; userId: string | null; currentStatus: UserStatus | null }>({
     open: false, userId: null, currentStatus: null,
   })
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("/api/users")
+      if (!res.ok) throw new Error("Không thể tải danh sách người dùng.")
+      const data = await res.json()
+      setUsers(data)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi khi tải danh sách.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
 
   const stats = useMemo(() => ({
     total: users.length,
@@ -174,14 +192,33 @@ export default function UserListPage() {
   const totalPages = Math.max(1, Math.ceil(filteredSortedUsers.length / itemsPerPage))
   const paginatedUsers = filteredSortedUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const handleToggleLock = () => {
-    if (!lockDialog.userId) return
-    setUsers((prev) => prev.map((u) =>
-      u.id === lockDialog.userId ? { ...u, status: u.status === "active" ? "locked" : "active" } : u
-    ))
-    const action = lockDialog.currentStatus === "active" ? "khóa" : "mở khóa"
-    toast.success(`Đã ${action} tài khoản thành công.`)
-    setLockDialog({ open: false, userId: null, currentStatus: null })
+  const handleToggleLock = async () => {
+    if (!lockDialog.userId || !lockDialog.currentStatus) return
+    const newStatus = lockDialog.currentStatus === "active" ? "locked" : "active"
+    const actionText = lockDialog.currentStatus === "active" ? "khóa" : "mở khóa"
+
+    try {
+      const res = await fetch(`/api/users/${lockDialog.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || `Không thể ${actionText} tài khoản.`)
+      }
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === lockDialog.userId ? { ...u, status: newStatus } : u))
+      )
+      toast.success(`Đã ${actionText} tài khoản thành công.`)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLockDialog({ open: false, userId: null, currentStatus: null })
+    }
   }
 
   return (
@@ -298,7 +335,12 @@ export default function UserListPage() {
 
         {/* User Cards */}
         <div className="space-y-3">
-          {paginatedUsers.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+              <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+              <p className="font-medium text-on-surface-variant">Đang tải danh sách người dùng...</p>
+            </div>
+          ) : paginatedUsers.length === 0 ? (
             <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
               <Users className="size-10 mx-auto mb-3 opacity-20" />
               <p className="font-medium text-on-surface-variant">Không tìm thấy người dùng nào</p>
@@ -306,7 +348,9 @@ export default function UserListPage() {
             </div>
           ) : paginatedUsers.map((user, index) => {
             const roleStyle = ROLE_STYLES[user.role] ?? ROLE_STYLES["Bệnh nhân"]
-            const gradient = AVATAR_GRADIENTS[parseInt(user.id) % AVATAR_GRADIENTS.length]
+            const numericId = parseInt(user.id.slice(-6), 16)
+            const gradientIndex = isNaN(numericId) ? index % AVATAR_GRADIENTS.length : numericId % AVATAR_GRADIENTS.length
+            const gradient = AVATAR_GRADIENTS[gradientIndex]
             const initials = getInitials(user.name)
             return (
               <div

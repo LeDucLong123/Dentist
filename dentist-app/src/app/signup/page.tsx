@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Eye, EyeOff, ArrowRight, Stethoscope, Check } from "lucide-react"
 
 export default function SignupPage() {
@@ -9,6 +10,14 @@ export default function SignupPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [terms, setTerms] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
 
   const passwordStrength = (() => {
     if (!password) return { score: 0, label: "", color: "" }
@@ -27,10 +36,67 @@ export default function SignupPage() {
     return map[score]
   })()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => setLoading(false), 1500)
+    setError("")
+
+    if (!terms) {
+      setError("Bạn phải đồng ý với Điều khoản sử dụng.")
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${lastName} ${firstName}`.trim(),
+          email,
+          password,
+          role: "patient" // default role
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Đăng ký thất bại.")
+      }
+
+      // Automatically log in user after successful signup
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const loginData = await loginRes.json()
+
+      if (!loginRes.ok) {
+        throw new Error(loginData.message || "Đăng nhập tự động thất bại.")
+      }
+
+      // Set cookie and localStorage
+      document.cookie = `token=${loginData.accessToken}; path=/; max-age=604800; SameSite=Lax`
+      localStorage.setItem("token", loginData.accessToken)
+      localStorage.setItem("user", JSON.stringify(loginData.user))
+
+      // Redirect to dashboard
+      router.push("/dashboard")
+      router.refresh()
+    } catch (err: any) {
+      setError(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -106,6 +172,12 @@ export default function SignupPage() {
             </Link>
           </p>
 
+          {error && (
+            <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-semibold">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Full name */}
             <div className="grid grid-cols-2 gap-4">
@@ -113,6 +185,8 @@ export default function SignupPage() {
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Họ</label>
                 <input
                   type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   placeholder="Lê"
                   className="w-full h-12 px-4 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                 />
@@ -121,6 +195,8 @@ export default function SignupPage() {
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Tên</label>
                 <input
                   type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   placeholder="Đức Long"
                   className="w-full h-12 px-4 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                 />
@@ -133,6 +209,8 @@ export default function SignupPage() {
               <input
                 type="email"
                 autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@clinicserenity.vn"
                 className="w-full h-12 px-4 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
               />
@@ -149,6 +227,8 @@ export default function SignupPage() {
                 <input
                   type="tel"
                   autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   placeholder="0912 345 678"
                   className="flex-1 h-12 px-4 rounded-r-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                 />
@@ -199,6 +279,8 @@ export default function SignupPage() {
                 <input
                   type={showConfirm ? "text" : "password"}
                   autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full h-12 px-4 pr-12 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                 />
@@ -214,6 +296,8 @@ export default function SignupPage() {
               <input
                 id="terms"
                 type="checkbox"
+                checked={terms}
+                onChange={(e) => setTerms(e.target.checked)}
                 className="size-4 rounded border-slate-300 accent-primary cursor-pointer mt-0.5"
               />
               <label htmlFor="terms" className="text-sm text-slate-600 cursor-pointer select-none leading-snug">

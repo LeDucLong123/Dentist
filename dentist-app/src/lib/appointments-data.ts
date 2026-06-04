@@ -21,9 +21,16 @@ export const APPOINTMENTS = [
   { id: "LK004", patient: "Phạm Thị Dung",   doctor: "BS. Nguyễn Thị Lan",  service: "Tẩy trắng răng",        date: "2026-05-31", start: "09:00", end: "10:00", status: "completed" },
   { id: "LK005", patient: "Đỗ Văn Minh",     doctor: "BS. Julian Pierce",   service: "Khám tổng quát",        date: "2026-05-31", start: "11:00", end: "12:00", status: "scheduled" },
 
-  // 2026-06-01 (Thứ Hai)
-  { id: "LK006", patient: "Hoàng Minh Đức",  doctor: "BS. Emily Thorne",    service: "Bọc răng sứ",           date: "2026-06-01", start: "08:30", end: "10:00", status: "confirmed" },
-  { id: "LK007", patient: "Vũ Thị Thảo",     doctor: "BS. Phạm Quốc Dũng",  service: "Cấy ghép Implant",      date: "2026-06-01", start: "13:30", end: "15:00", status: "scheduled" },
+  // 2026-06-01 (Thứ Hai - Hôm nay: Đầy đủ các trạng thái & Trùng giờ)
+  { id: "LK006", patient: "Hoàng Minh Đức",  doctor: "BS. Emily Thorne",    service: "Bọc răng sứ",           date: "2026-06-01", start: "08:00", end: "09:30", status: "confirmed" },
+  { id: "LK007", patient: "Vũ Thị Thảo",     doctor: "BS. Phạm Quốc Dũng",  service: "Cấy ghép Implant",      date: "2026-06-01", start: "09:30", end: "11:00", status: "scheduled" },
+  { id: "LK021", patient: "Trần Văn Hùng",   doctor: "BS. Nguyễn Thị Lan",  service: "Khám tổng quát",        date: "2026-06-01", start: "09:30", end: "11:00", status: "confirmed" },
+  { id: "LK022", patient: "Nguyễn Thị Thủy", doctor: "BS. Julian Pierce",   service: "Nhổ răng khôn",         date: "2026-06-01", start: "10:00", end: "11:30", status: "scheduled" },
+  { id: "LK016", patient: "Đỗ Văn Minh",     doctor: "BS. Julian Pierce",   service: "Nhổ răng khôn",         date: "2026-06-01", start: "11:00", end: "12:00", status: "checked_in" },
+  { id: "LK017", patient: "Trần Thị Bích",   doctor: "BS. Emily Thorne",    service: "Chỉnh nha mắc cài",     date: "2026-06-01", start: "13:30", end: "15:00", status: "examining" },
+  { id: "LK018", patient: "Nguyễn Văn An",   doctor: "BS. Julian Pierce",   service: "Khám tổng quát",        date: "2026-06-01", start: "15:00", end: "16:00", status: "rescheduled" },
+  { id: "LK019", patient: "Phạm Thị Dung",   doctor: "BS. Nguyễn Thị Lan",  service: "Tẩy trắng răng",        date: "2026-06-01", start: "16:00", end: "17:00", status: "completed" },
+  { id: "LK020", patient: "Lê Hoàng Cường",  doctor: "BS. Phạm Quốc Dũng",  service: "X-quang panoramic",     date: "2026-06-01", start: "17:00", end: "17:30", status: "cancelled" },
 
   // 2026-06-02 (Thứ Ba)
   { id: "LK008", patient: "Đặng Văn Hùng",   doctor: "BS. Nguyễn Thị Lan",  service: "Chỉnh nha mắc cài",     date: "2026-06-02", start: "10:00", end: "11:30", status: "confirmed" },
@@ -199,6 +206,62 @@ const DETAIL_MAP: Record<string, Partial<AppointmentDetail>> = {
     room: "Phòng 1B", note: "",
     price: 300000, discount: 0, paid: 300000,
     items: [{ name: "Khám tổng quát", qty: 1, unit: "lần", price: 300000, type: "thuong" }],
+  },
+  LK016: {
+    patientId: "BN011", patientPhone: "0965 444 555", patientEmail: "dvm@email.com",
+    patientAddress: "89 Nguyễn Đình Chiểu, Q.3, TP.HCM", patientDob: "1993-09-12",
+    doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
+    room: "Phòng 3A", note: "Răng khôn số 8 mọc lệch.",
+    price: 2500000, discount: 0, paid: 2500000,
+    items: [{ name: "Nhổ răng khôn phẫu thuật", qty: 1, unit: "răng", price: 2500000, type: "thuong" }],
+  },
+  LK017: {
+    patientId: "BN002", patientPhone: "0987 654 321", patientEmail: "ttb@email.com",
+    patientAddress: "45 Nguyễn Huệ, Q.1, TP.HCM", patientDob: "1995-07-22",
+    doctorId: "BS002", doctorSpecialty: "Chỉnh nha", doctorPhone: "0902 222 333",
+    room: "Phòng 2B", note: "Tái khám chỉnh mắc cài.",
+    price: 300000, discount: 0, paid: 300000,
+    items: [{ name: "Khám tổng quát", qty: 1, unit: "lần", price: 300000, type: "thuong" }],
+  },
+  LK018: {
+    patientId: "BN001", patientPhone: "0912 345 678", patientEmail: "nva@email.com",
+    patientAddress: "123 Lê Lợi, Q.1, TP.HCM", patientDob: "1990-03-15",
+    doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
+    room: "Phòng 3A", note: "Bệnh nhân yêu cầu đổi từ giờ sáng sang chiều.",
+    price: 300000, discount: 0, paid: 300000,
+    items: [{ name: "Khám tổng quát", qty: 1, unit: "lần", price: 300000, type: "thuong" }],
+  },
+  LK019: {
+    patientId: "BN004", patientPhone: "0934 567 890", patientEmail: "ptd@email.com",
+    patientAddress: "56 Võ Văn Tần, Q.3, TP.HCM", patientDob: "1985-02-28",
+    doctorId: "BS004", doctorSpecialty: "Thẩm mỹ nha khoa", doctorPhone: "0904 444 555",
+    room: "Phòng 1B", note: "",
+    price: 2500000, discount: 0, paid: 2500000,
+    items: [{ name: "Tẩy trắng Zoom Whitening", qty: 1, unit: "ca", price: 2500000, type: "vip" }],
+  },
+  LK020: {
+    patientId: "BN003", patientPhone: "0909 111 222", patientEmail: "lvc@email.com",
+    patientAddress: "78 Trần Hưng Đạo, Q.5, TP.HCM", patientDob: "1988-11-03",
+    doctorId: "BS003", doctorSpecialty: "Nhổ răng & Phẫu thuật", doctorPhone: "0903 333 444",
+    room: "Phòng 1A", note: "Bệnh nhân bận việc đột xuất xin hủy lịch.",
+    price: 200000, discount: 0, paid: 0,
+    items: [{ name: "X-quang panoramic", qty: 1, unit: "lần", price: 200000, type: "thuong" }],
+  },
+  LK021: {
+    patientId: "BN003", patientPhone: "0909 111 222", patientEmail: "tvh@email.com",
+    patientAddress: "78 Trần Hưng Đạo, Q.5, TP.HCM", patientDob: "1988-11-03",
+    doctorId: "BS004", doctorSpecialty: "Thẩm mỹ nha khoa", doctorPhone: "0904 444 555",
+    room: "Phòng 1B", note: "Ca cấy răng thẩm mỹ trùng giờ khám định kỳ.",
+    price: 300000, discount: 0, paid: 300000,
+    items: [{ name: "Khám tổng quát", qty: 1, unit: "lần", price: 300000, type: "thuong" }],
+  },
+  LK022: {
+    patientId: "BN007", patientPhone: "0909 777 888", patientEmail: "ntt@email.com",
+    patientAddress: "34 Đinh Tiên Hoàng, Q.BT, TP.HCM", patientDob: "1991-04-05",
+    doctorId: "BS001", doctorSpecialty: "Cấy ghép Implant", doctorPhone: "0901 111 222",
+    room: "Phòng 3A", note: "",
+    price: 2500000, discount: 0, paid: 2500000,
+    items: [{ name: "Nhổ răng khôn phẫu thuật", qty: 1, unit: "răng", price: 2500000, type: "thuong" }],
   },
 }
 

@@ -1,62 +1,127 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, User, School, Link2, Stethoscope, CheckCircle2, Activity, Users, Star, Lock, UserCheck } from "lucide-react"
+import { ArrowLeft, User, School, Link2, Stethoscope, CheckCircle2, Activity, Users, Star, Lock } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Topbar } from "@/components/topbar"
-import { AvatarUpload } from "@/components/avatar-upload"
 import { FormSection } from "@/components/form-section"
 import { cn } from "@/lib/utils"
 import { DoctorBreadcrumb } from "../../_components/doctor-breadcrumb"
 
-// Mock data – simulating fetched doctor for id
-const MOCK_DOCTOR = {
-  id: "1",
-  name: "BS. Phạm Thành Nam",
-  phone: "0901 234 567",
-  email: "nam.pham@serenity.vn",
-  role: "Trưởng khoa",
-  degree: "Tiến sĩ",
-  specialty: "Cấy ghép Implant",
-  linkedUserId: "user_linked",
-  linkedUserName: "Phạm Thành Nam",
-  linkedUserEmail: "nam.pham@serenity.vn",
-  stats: { surgeries: 24, patients: 12, rating: 4.9 },
-}
-
-const MOCK_USERS = [
-  { value: "user_1", name: "Nguyễn Văn A", phone: "0901 111 222", email: "nguyen.van.a@serenity.vn" },
-  { value: "user_2", name: "Trần Thị Bích", phone: "0932 333 444", email: "tran.thi.bich@serenity.vn" },
-  { value: "user_3", name: "Lê Văn Cường", phone: "0977 555 666", email: "le.van.cuong@serenity.vn" },
-  { value: "user_4", name: "Phạm Minh Đức", phone: "0988 777 888", email: "pham.minh.duc@serenity.vn" },
-  // Pre-linked user
-  { value: "user_linked", name: MOCK_DOCTOR.linkedUserName, phone: MOCK_DOCTOR.phone, email: MOCK_DOCTOR.linkedUserEmail },
+const AVATAR_GRADIENTS = [
+  "from-violet-500 to-indigo-600",
+  "from-blue-500 to-cyan-600",
+  "from-emerald-500 to-teal-600",
+  "from-rose-500 to-pink-600",
+  "from-amber-500 to-orange-600",
 ]
 
-type MockUser = typeof MOCK_USERS[number]
+function getInitials(name: string) {
+  const parts = name.replace(/^(BS\.|ThS\.BS\.|ThS\.|TS\.|GS\.|GS\.TS\.)?\s*/i, "").trim().split(" ")
+  return parts.slice(-2).map((p) => p[0]).join("").toUpperCase()
+}
 
-export default function EditDoctorPage() {
+export default function EditDoctorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
+  const [doctor, setDoctor] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Linked user is fixed after creation — cannot be changed
-  const linkedUser = MOCK_USERS.find((u) => u.value === MOCK_DOCTOR.linkedUserId) ?? null
+  const [degree, setDegree] = useState("")
+  const [specialty, setSpecialty] = useState("")
 
-  const handleSave = () => {
+  useEffect(() => {
+    const fetchDoctor = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch(`/api/doctors/${id}`)
+        if (!res.ok) throw new Error("Không thể tải thông tin bác sĩ.")
+        const data = await res.json()
+        setDoctor(data)
+        setDegree(data.degree)
+        setSpecialty(data.specialty)
+      } catch (err: any) {
+        toast.error(err.message || "Đã xảy ra lỗi.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDoctor()
+  }, [id])
+
+  const handleSave = async () => {
+    if (!degree || !specialty) {
+      toast.error("Vui lòng nhập đầy đủ trình độ và chuyên môn.")
+      return
+    }
+
     setIsSaving(true)
-    setTimeout(() => {
+    try {
+      const res = await fetch(`/api/doctors/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          degree,
+          specialty,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Cập nhật hồ sơ bác sĩ thất bại.")
+      }
+
       toast.success("Cập nhật thành công!", {
-        description: `Thông tin của ${linkedUser?.name ?? "bác sĩ"} đã được lưu.`,
+        description: `Thông tin của ${doctor?.name || "bác sĩ"} đã được lưu.`,
       })
       router.push("/doctors")
-    }, 600)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setIsSaving(false)
+    }
   }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm bác sĩ..." />
+        <div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center min-h-[300px]">
+          <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="font-medium text-on-surface-variant">Đang tải thông tin bác sĩ...</p>
+        </div>
+      </>
+    )
+  }
+
+  if (!doctor) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm bác sĩ..." />
+        <div className="p-8 text-center text-on-surface-variant">
+          Không tìm thấy bác sĩ #{id}
+        </div>
+      </>
+    )
+  }
+
+  const numericId = parseInt(doctor.id.slice(-6), 16)
+  const gradientIndex = isNaN(numericId) ? 0 : numericId % AVATAR_GRADIENTS.length
+  const gradient = AVATAR_GRADIENTS[gradientIndex]
+  const initials = getInitials(doctor.name)
+
+  // Demo stats based deterministically on doctor ID
+  const surgeries = (numericId % 30) + 10
+  const patients = (numericId % 20) + 5
+  const rating = 4.5 + ((numericId % 5) / 10)
 
   return (
     <>
@@ -83,13 +148,12 @@ export default function EditDoctorPage() {
           {/* Left sidebar */}
           <div className="lg:col-span-1 flex flex-col gap-4">
             <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-6 flex flex-col items-center text-center gap-3">
-              <AvatarUpload
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaEJO3iKuJ7JnTkIuTLS_KwpMjJR9h9JMsrffZhPRvn3TCc2uV2IF8v4YhGVA8Q4F3sSMNpBUI5R-MQRDhzjCHN_KZM0taeXYtFVa-P7B6SER39KefixVwoknJI4fiAp19DWdlUdjiRpKkR3TaybFxI4SjJ9Z-Hb9U_5SBNhscQRiANZrZ_MlXkTyf82Xsd8Dmb7Nzp5DOyG3ScooKuWSerTJQOnrlqu6S67VZLziuqymxzHMRyTbYzvhI9kC3lh02ztT19kO_jg"
-                initials="PN"
-              />
+              <div className={`relative size-20 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-md`}>
+                <span className="text-white font-bold text-2xl tracking-wide">{initials}</span>
+              </div>
               <div>
-                <h4 className="font-bold text-blue-900 text-sm">{MOCK_DOCTOR.name}</h4>
-                <p className="text-xs text-on-surface-variant mt-0.5">Ảnh chân dung · Nhấn để đổi</p>
+                <h4 className="font-bold text-blue-900 text-sm">{doctor.name}</h4>
+                <p className="text-xs text-on-surface-variant mt-0.5">Hồ sơ bác sĩ liên kết</p>
               </div>
             </div>
 
@@ -98,9 +162,9 @@ export default function EditDoctorPage() {
               <p className="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider mb-3">Thống kê</p>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { icon: Activity, label: "Ca phẫu thuật", value: MOCK_DOCTOR.stats.surgeries, color: "text-blue-600" },
-                  { icon: Users,    label: "Bệnh nhân mới", value: MOCK_DOCTOR.stats.patients,  color: "text-emerald-600" },
-                  { icon: Star,     label: "Đánh giá",      value: MOCK_DOCTOR.stats.rating,    color: "text-amber-500" },
+                  { icon: Activity, label: "Ca phẫu thuật", value: surgeries, color: "text-blue-600" },
+                  { icon: Users,    label: "Bệnh nhân mới", value: patients,  color: "text-emerald-600" },
+                  { icon: Star,     label: "Đánh giá",      value: rating.toFixed(1),    color: "text-amber-500" },
                 ].map(({ icon: Icon, label, value, color }) => (
                   <div key={label} className="flex flex-col items-center text-center p-2 rounded-xl bg-surface-container-low/60">
                     <Icon className={`size-4 mb-1 ${color}`} />
@@ -138,12 +202,12 @@ export default function EditDoctorPage() {
                     <Lock className="size-4 text-primary/60" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-on-surface truncate">{linkedUser?.name ?? "Chưa liên kết"}</p>
-                    <p className="text-xs text-on-surface-variant truncate">{linkedUser?.email ?? ""}</p>
+                    <p className="text-sm font-semibold text-on-surface truncate">{doctor.name}</p>
+                    <p className="text-xs text-on-surface-variant truncate">{doctor.email}</p>
                   </div>
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant/20 shrink-0">
                     <Lock className="size-2.5" />
-                    Đã khóa
+                    Đã liên kết
                   </span>
                 </div>
                 <p className="text-xs text-on-surface-variant/60 mt-2">
@@ -152,64 +216,39 @@ export default function EditDoctorPage() {
               </FormSection>
             </div>
 
-            {/* 2. Personal info – read-only when linked */}
-            <div className={cn(
-              "bg-white rounded-2xl border shadow-sm p-6 transition-all",
-              linkedUser ? "border-primary/20" : "border-outline-variant/10"
-            )}>
+            {/* 2. Personal info – read-only */}
+            <div className="bg-white rounded-2xl border border-primary/20 shadow-sm p-6 transition-all">
               <FormSection icon={User} title="Thông tin cá nhân">
-                {!linkedUser && (
-                  <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5">
-                    <UserCheck className="size-4 text-amber-500 shrink-0" />
-                    <p className="text-xs text-amber-700 font-medium">
-                      Liên kết tài khoản để đồng bộ thông tin cá nhân.
-                    </p>
-                  </div>
-                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Họ và tên</Label>
                     <Input
-                      value={linkedUser?.name ?? ""}
-                      readOnly={!!linkedUser}
-                      placeholder="Tự động điền khi liên kết"
-                      className={cn(
-                        "rounded-xl h-10 border-none",
-                        linkedUser ? "bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80" : "bg-surface-container-low italic placeholder:text-outline-variant/50"
-                      )}
+                      value={doctor.name}
+                      readOnly
+                      className="rounded-xl h-10 border-none bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Số điện thoại</Label>
                     <Input
-                      value={linkedUser?.phone ?? ""}
-                      readOnly={!!linkedUser}
-                      placeholder="Tự động điền khi liên kết"
-                      className={cn(
-                        "rounded-xl h-10 border-none",
-                        linkedUser ? "bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80" : "bg-surface-container-low italic placeholder:text-outline-variant/50"
-                      )}
+                      value={doctor.phone}
+                      readOnly
+                      className="rounded-xl h-10 border-none bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80"
                     />
                   </div>
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Email liên lạc</Label>
                     <Input
-                      value={linkedUser?.email ?? ""}
-                      readOnly={!!linkedUser}
-                      placeholder="Tự động điền khi liên kết"
-                      className={cn(
-                        "rounded-xl h-10 border-none",
-                        linkedUser ? "bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80" : "bg-surface-container-low italic placeholder:text-outline-variant/50"
-                      )}
+                      value={doctor.email}
+                      readOnly
+                      className="rounded-xl h-10 border-none bg-surface-container-low/50 font-medium cursor-not-allowed opacity-80"
                     />
                   </div>
                 </div>
-                {linkedUser && (
-                  <p className="text-xs text-primary/70 mt-2 flex items-center gap-1">
-                    <CheckCircle2 className="size-3.5 text-primary/50" />
-                    Thông tin đồng bộ từ tài khoản liên kết, không thể chỉnh sửa tại đây.
-                  </p>
-                )}
+                <p className="text-xs text-primary/70 mt-2 flex items-center gap-1">
+                  <CheckCircle2 className="size-3.5 text-primary/50" />
+                  Thông tin đồng bộ từ tài khoản liên kết, không thể chỉnh sửa tại đây.
+                </p>
               </FormSection>
             </div>
 
@@ -218,21 +257,8 @@ export default function EditDoctorPage() {
               <FormSection icon={School} title="Trình độ & Chuyên môn">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Chức vụ / Vai trò <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_DOCTOR.role}>
-                      <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Trưởng khoa">Trưởng khoa</SelectItem>
-                        <SelectItem value="BS. Chính">BS. Chính</SelectItem>
-                        <SelectItem value="BS. Phụ">BS. Phụ</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Học vị <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_DOCTOR.degree}>
+                    <Select value={degree} onValueChange={(val) => setDegree(val || "")}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue />
                       </SelectTrigger>
@@ -247,9 +273,9 @@ export default function EditDoctorPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="sm:col-span-2 space-y-1.5">
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Chuyên khoa <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_DOCTOR.specialty}>
+                    <Select value={specialty} onValueChange={(val) => setSpecialty(val || "")}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue />
                       </SelectTrigger>

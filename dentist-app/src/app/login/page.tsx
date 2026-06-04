@@ -8,15 +8,43 @@ import { Eye, EyeOff, ArrowRight, Stethoscope } from "lucide-react"
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
   const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => {
+    setError("")
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Đăng nhập thất bại.")
+      }
+
+      // Store token in cookie (so server-side layout can check it)
+      document.cookie = `token=${data.accessToken}; path=/; max-age=604800; SameSite=Lax`
+      
+      // Also store in localStorage if frontend code needs it
+      localStorage.setItem("token", data.accessToken)
+      localStorage.setItem("user", JSON.stringify(data.user))
+
+      router.push("/dashboard")
+      router.refresh() // Refresh layout to trigger server-side auth validation
+    } catch (err: any) {
+      setError(err.message || "Đã xảy ra lỗi.")
+    } finally {
       setLoading(false)
-      router.push("/")
-    }, 1500)
+    }
   }
 
   return (
@@ -81,6 +109,12 @@ export default function LoginPage() {
             </Link>
           </p>
 
+          {error && (
+            <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-semibold">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
             <div className="space-y-1.5">
@@ -88,6 +122,8 @@ export default function LoginPage() {
               <input
                 type="email"
                 autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@clinicserenity.vn"
                 className="w-full h-12 px-4 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
               />
@@ -105,6 +141,8 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full h-12 px-4 pr-12 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
                 />

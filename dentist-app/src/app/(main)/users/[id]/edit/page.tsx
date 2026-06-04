@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { ChevronRight, User, Lock, CheckCircle2 } from "lucide-react"
@@ -39,17 +39,51 @@ export default function EditUserPage() {
   const userId = params?.id as string
 
   const [form, setForm] = useState<FormState>({
-    name: "BS. Julian Pierce",
-    phone: "0123 456 789",
-    email: "julian.p@clinicalserenity.com",
-    role: "Bác sĩ",
-    specialty: "tiến sĩ",
+    name: "",
+    phone: "",
+    email: "",
+    role: "Bệnh nhân",
+    specialty: "cử nhân",
     newPassword: "",
     confirmPassword: "",
   })
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [userMetadata, setUserMetadata] = useState<{ joinDate: string; lastActive: string; status: string } | null>(null)
+
+  useEffect(() => {
+    if (!userId) return
+    const fetchUser = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch(`/api/users/${userId}`)
+        if (!res.ok) throw new Error("Không thể tải thông tin người dùng.")
+        const data = await res.json()
+        setForm({
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          role: data.role,
+          specialty: data.specialty || "cử nhân",
+          newPassword: "",
+          confirmPassword: "",
+        })
+        setUserMetadata({
+          joinDate: data.joinDate,
+          lastActive: data.lastActive,
+          status: data.status,
+        })
+      } catch (err: any) {
+        toast.error(err.message || "Đã xảy ra lỗi khi tải dữ liệu.")
+        router.push("/users")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchUser()
+  }, [userId, router])
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -76,10 +110,53 @@ export default function EditUserPage() {
     e.preventDefault()
     if (!validate()) return
     setSubmitting(true)
-    await new Promise((r) => setTimeout(r, 1000))
-    setSubmitting(false)
-    toast.success("Cập nhật thông tin người dùng thành công!")
+    
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+          role: form.role,
+          specialty: form.role === "Bác sĩ" ? form.specialty : undefined,
+          password: form.newPassword || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Cập nhật thất bại.")
+      }
+
+      toast.success("Cập nhật thông tin người dùng thành công!")
+      setTimeout(() => router.push("/users"), 1200)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  const getInitials = (name: string) => {
+    const parts = name.replace(/^(BS\.|Admin)\s*/i, "").trim().split(" ")
+    return parts.slice(-2).map((p) => p[0]).join("").toUpperCase()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="size-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm font-semibold text-on-surface-variant">Đang tải thông tin người dùng...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const initials = form.name ? getInitials(form.name) : "U"
 
   const inputClass = (field: keyof FormErrors) =>
     `bg-surface-container-low border-none rounded-lg py-3 px-4 h-auto focus:bg-surface focus:ring-2 transition-all ${
@@ -107,8 +184,7 @@ export default function EditUserPage() {
             <div className="bg-surface-container-lowest p-6 rounded-xl shadow-[0_10px_40px_rgba(25,28,29,0.05)] sticky top-24">
               <div className="flex flex-col items-center text-center">
                 <AvatarUpload
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEHG091QDfw97DH4viyp-BfU79_JfMCRrbVMWTT0cAdeVaHBgGhJwWoBw_DJX52IRQGxoEZ1TK70hI7up4ZZIMW5K-WEFW11x0KDKaiDiv1Iv1L-DupGpPmZCQiadE4-JU5zEVs5XTR91417hK7kv_ZIaoNR7qj2YVJQeYdrus98jWUB8o1kOUfMFiOK1NscsHSg5sdjnLu9eyvdiyHnOLpomqa5lERlh-pmUehP4_mMUhGyla62VyxXNc-eXFKvFIdbptg9jswg"
-                  initials="JP"
+                  initials={initials}
                   className="mb-4"
                 />
                 <h3 className="font-headline font-bold text-xl text-on-surface">{form.name}</h3>
@@ -116,20 +192,20 @@ export default function EditUserPage() {
                   {ROLES.find(r => r.value === form.role)?.label}
                   {form.role === "Bác sĩ" && form.specialty ? ` - ${form.specialty.charAt(0).toUpperCase() + form.specialty.slice(1)}` : ""}
                 </p>
-                <div className="flex gap-2 mb-6">
-                  <StatusBadge status="active" />
+                <div className="flex gap-2 mb-6 justify-center">
+                  <StatusBadge status={(userMetadata?.status as any) || "active"} />
                   <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-xs font-semibold">
-                    ID: DS-772
+                    ID: #{userId ? userId.slice(-6).toUpperCase() : ""}
                   </span>
                 </div>
                 <div className="w-full space-y-3 pt-4 border-t border-surface-container opacity-80">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-on-surface-variant">Lần cuối đăng nhập:</span>
-                    <span className="font-semibold">Hôm nay, 08:30</span>
+                    <span className="font-semibold">{userMetadata?.lastActive || "Chưa có"}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-on-surface-variant">Ngày tham gia:</span>
-                    <span className="font-semibold">12 Th04, 2023</span>
+                    <span className="font-semibold">{userMetadata?.joinDate || "Chưa có"}</span>
                   </div>
                 </div>
               </div>

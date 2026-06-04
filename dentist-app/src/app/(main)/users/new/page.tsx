@@ -15,6 +15,7 @@ import { PasswordInput } from "@/components/password-input"
 import { AvatarUpload } from "@/components/avatar-upload"
 import { SecurityCard } from "@/components/security-card"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import { FormError } from "../_components/form-error"
 import { ROLES, Role } from "../_constants"
 
@@ -86,10 +87,35 @@ export default function AddUserPage() {
     e.preventDefault()
     if (!validate()) return
     setSubmitting(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setSubmitting(false)
-    setSuccess(true)
-    setTimeout(() => router.push("/users"), 1500)
+    
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          role: form.role,
+          specialty: form.role === "Bác sĩ" ? form.specialty : undefined,
+          password: form.password,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Tạo người dùng thất bại.")
+      }
+
+      setSuccess(true)
+      setTimeout(() => router.push("/users"), 1500)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+      setErrors((prev) => ({ ...prev, email: err.message }))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const inputClass = (field: keyof FormErrors) =>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Bell, Clock, ChevronDown, Smile,
   Settings, LogOut, User, Shield, X,
@@ -211,6 +212,32 @@ export function Topbar({ title, variant = "default", searchPlaceholder }: Topbar
   const [greeting, setGreeting] = useState("")
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
+  const router = useRouter()
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(null)
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem("user")
+      if (savedUser) {
+        setCurrentUser(JSON.parse(savedUser))
+      }
+    } catch {}
+  }, [])
+
+  const roleLabels: Record<string, string> = {
+    admin: "Quản trị viên",
+    patient: "Bệnh nhân",
+    receptionist: "Lễ tân",
+    doctor: "Bác sĩ"
+  }
+
+  const handleLogout = () => {
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    router.push("/login")
+    router.refresh()
+  }
 
   useEffect(() => {
     setGreeting(getGreeting())
@@ -247,17 +274,22 @@ export function Topbar({ title, variant = "default", searchPlaceholder }: Topbar
     </div>
   )
 
+  const userName = currentUser?.name || "Người dùng"
+  const userRoleText = roleLabels[currentUser?.role || ""] || "Thành viên"
+  const userEmail = currentUser?.email || "user@clinicserenity.vn"
+  const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()
+
   const UserMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-200 outline-none">
           <Avatar size="default" className="ring-2 ring-white shadow-sm">
-            <AvatarImage src={AVATAR_SRC} alt="Admin" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={AVATAR_SRC} alt={userName} />
+            <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
           <div className="text-left">
-            <p className="text-xs font-bold text-on-surface leading-none">Admin</p>
-            <p className="text-[10px] text-on-surface-variant/60 leading-none mt-0.5">Quản trị viên</p>
+            <p className="text-xs font-bold text-on-surface leading-none">{userName}</p>
+            <p className="text-[10px] text-on-surface-variant/60 leading-none mt-0.5">{userRoleText}</p>
           </div>
           <ChevronDown className="size-3.5 text-on-surface-variant/40 group-hover:text-on-surface-variant transition-colors" />
         </button>
@@ -268,17 +300,17 @@ export function Topbar({ title, variant = "default", searchPlaceholder }: Topbar
         <div className="px-2 py-2 mb-1">
           <div className="flex items-center gap-3">
             <Avatar size="default" className="ring-2 ring-white shadow-sm shrink-0">
-              <AvatarImage src={AVATAR_SRC} alt="Admin" />
-              <AvatarFallback>AD</AvatarFallback>
+              <AvatarImage src={AVATAR_SRC} alt={userName} />
+              <AvatarFallback>{userInitials}</AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-bold text-on-surface">Admin</p>
-              <p className="text-xs text-on-surface-variant/60">admin@clinicserenity.vn</p>
+              <p className="text-sm font-bold text-on-surface">{userName}</p>
+              <p className="text-xs text-on-surface-variant/60 truncate max-w-[130px]">{userEmail}</p>
             </div>
           </div>
           <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-lg">
             <Shield className="size-3 text-primary" />
-            <span className="text-[11px] font-bold text-primary">Quản trị viên hệ thống</span>
+            <span className="text-[11px] font-bold text-primary">{userRoleText}</span>
           </div>
         </div>
 
@@ -316,7 +348,7 @@ export function Topbar({ title, variant = "default", searchPlaceholder }: Topbar
 
         <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-        <DropdownMenuItem className="gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-sm font-medium text-red-600 focus:text-red-600 focus:bg-red-50">
+        <DropdownMenuItem onClick={handleLogout} className="gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-sm font-medium text-red-600 focus:text-red-600 focus:bg-red-50">
           <LogOut className="size-4" />
           Đăng xuất
         </DropdownMenuItem>
@@ -346,7 +378,7 @@ export function Topbar({ title, variant = "default", searchPlaceholder }: Topbar
         </div>
         <div>
           <p className="text-[11px] font-medium text-on-surface-variant/60 leading-none mb-0.5">{greeting},</p>
-          <p className="text-sm font-bold text-on-surface leading-none">Admin Lê Đức Long</p>
+          <p className="text-sm font-bold text-on-surface leading-none">{userName}</p>
         </div>
       </div>
 

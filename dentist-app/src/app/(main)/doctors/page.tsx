@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import Link from "next/link"
 import {
   Plus,
@@ -95,11 +96,7 @@ export const initialDoctors: Doctor[] = [
   },
 ]
 
-const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  "Trưởng khoa": { bg: "bg-amber-50 border border-amber-200", text: "text-amber-700", dot: "bg-amber-400" },
-  "BS. Chính":   { bg: "bg-blue-50 border border-blue-200",   text: "text-blue-700",  dot: "bg-blue-400"  },
-  "BS. Phụ":     { bg: "bg-slate-50 border border-slate-200", text: "text-slate-600", dot: "bg-slate-400" },
-}
+
 
 const AVATAR_GRADIENTS = [
   "from-violet-500 to-indigo-600",
@@ -115,11 +112,30 @@ function getInitials(name: string) {
 }
 
 export default function DoctorListPage() {
-  const [doctors, setDoctors] = useState(initialDoctors)
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
   const [sortKey, setSortKey] = useState("Chuyên môn")
   const [lockTarget, setLockTarget] = useState<{ id: string; name: string; status: string } | null>(null)
+
+  const fetchDoctors = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/doctors")
+      if (!res.ok) throw new Error("Không thể tải danh sách bác sĩ.")
+      const data = await res.json()
+      setDoctors(data)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi khi tải dữ liệu.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDoctors()
+  }, [])
 
   const itemsPerPage = Math.max(1, parseInt(itemsPerPageInput) || 3)
   const totalPages = Math.max(1, Math.ceil(doctors.length / itemsPerPage))
@@ -133,14 +149,33 @@ export default function DoctorListPage() {
 
   const paginatedDoctors = sortedDoctors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const toggleLock = () => {
+  const toggleLock = async () => {
     if (!lockTarget) return
-    setDoctors((prev) =>
-      prev.map((d) =>
-        d.id === lockTarget.id ? { ...d, status: d.status === "active" ? "locked" : "active" } : d
+    const newStatus = lockTarget.status === "active" ? "locked" : "active"
+    const actionText = lockTarget.status === "active" ? "khóa" : "mở khóa"
+
+    try {
+      const res = await fetch(`/api/users/${lockTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || `Không thể ${actionText} tài khoản bác sĩ.`)
+      }
+
+      setDoctors((prev) =>
+        prev.map((d) => (d.id === lockTarget.id ? { ...d, status: newStatus } : d))
       )
-    )
-    setLockTarget(null)
+      toast.success(`Đã ${actionText} tài khoản bác sĩ thành công.`)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLockTarget(null)
+    }
   }
 
   return (
@@ -163,12 +198,7 @@ export default function DoctorListPage() {
               Quản lý đội ngũ y bác sĩ chuyên khoa và trình độ chuyên môn.
             </p>
           </div>
-          <Link href="/doctors/new">
-            <Button className="bg-primary text-on-primary h-10 px-5 shadow-md shadow-primary/25 hover:shadow-primary/40 hover:brightness-105 transition-all font-semibold gap-2 shrink-0">
-              <Plus className="size-4" />
-              Thêm bác sĩ mới
-            </Button>
-          </Link>
+          {/* No doctor creation button as requested */}
         </div>
 
         {/* Stats bar */}
@@ -219,9 +249,20 @@ export default function DoctorListPage() {
 
         {/* Doctor Cards */}
         <div className="space-y-3">
-          {paginatedDoctors.map((doctor, index) => {
-            const roleStyle = ROLE_STYLES[doctor.role] ?? ROLE_STYLES["BS. Phụ"]
-            const gradient = AVATAR_GRADIENTS[parseInt(doctor.id) % AVATAR_GRADIENTS.length]
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+              <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+              <p className="font-medium text-on-surface-variant">Đang tải danh sách bác sĩ...</p>
+            </div>
+          ) : paginatedDoctors.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+              <Users className="size-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium text-on-surface-variant">Không tìm thấy bác sĩ nào</p>
+            </div>
+          ) : paginatedDoctors.map((doctor, index) => {
+            const numericId = parseInt(doctor.id.slice(-6), 16)
+            const gradientIndex = isNaN(numericId) ? index % AVATAR_GRADIENTS.length : numericId % AVATAR_GRADIENTS.length
+            const gradient = AVATAR_GRADIENTS[gradientIndex]
             const initials = getInitials(doctor.name)
             return (
               <div
@@ -251,12 +292,6 @@ export default function DoctorListPage() {
                   <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-3 gap-y-2 gap-x-6">
                     {/* Name & role */}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", roleStyle.bg, roleStyle.text)}>
-                          <span className={cn("size-1.5 rounded-full", roleStyle.dot)} />
-                          {doctor.role}
-                        </span>
-                      </div>
                       <h3 className="text-sm font-bold text-on-surface truncate">{doctor.name}</h3>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                         <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">

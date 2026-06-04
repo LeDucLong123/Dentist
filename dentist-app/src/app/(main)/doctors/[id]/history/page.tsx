@@ -1,22 +1,19 @@
 "use client"
 
-import { use, useState, useMemo } from "react"
+import { use, useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
-import { initialDoctors } from "@/app/(main)/doctors/page"
-import { initialUsers } from "@/app/(main)/users/page"
 import { fmtCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   ChevronRight,
   ArrowLeft,
   Mail,
   Phone,
-  Calendar,
-  Clock,
   MapPin,
   ClipboardList,
   Search,
@@ -26,34 +23,27 @@ import {
 
 export default function DoctorHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  
-  // Find doctor details
-  const doctor = useMemo(() => {
-    // 1. Try to find in initialDoctors list
-    let doc = initialDoctors.find((d) => d.id === id)
-    
-    // 2. If not found, try to find in initialUsers (when accessed from users list)
-    if (!doc) {
-      const usr = initialUsers.find((u) => u.id === id && u.role === "Bác sĩ")
-      if (usr) {
-        doc = {
-          id: usr.id,
-          name: usr.name,
-          role: "BS. Chính",
-          degree: "Bác sĩ",
-          specialty: "Nha khoa Tổng quát",
-          phone: "0901 111 222",
-          email: usr.email,
-          status: usr.status,
-          badge: "senior"
-        }
-      }
-    }
-    return doc
-  }, [id])
-
+  const [doctor, setDoctor] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+
+  useEffect(() => {
+    const fetchDoctor = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch(`/api/doctors/${id}`)
+        if (!res.ok) throw new Error("Không thể tải thông tin bác sĩ.")
+        const data = await res.json()
+        setDoctor(data)
+      } catch (err: any) {
+        toast.error(err.message || "Đã xảy ra lỗi khi tải thông tin bác sĩ.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDoctor()
+  }, [id])
 
   // Map demo doctor name to mock appointments
   const searchName = useMemo(() => {
@@ -93,6 +83,18 @@ export default function DoctorHistoryPage({ params }: { params: Promise<{ id: st
     })
   }, [doctorAppointments, searchQuery, statusFilter])
 
+  if (loading) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm ca khám..." />
+        <div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center min-h-[300px]">
+          <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="font-medium text-on-surface-variant">Đang tải lịch sử khám...</p>
+        </div>
+      </>
+    )
+  }
+
   if (!doctor) {
     return (
       <>
@@ -111,8 +113,10 @@ export default function DoctorHistoryPage({ params }: { params: Promise<{ id: st
     "from-rose-500 to-pink-600",
     "from-amber-500 to-orange-600",
   ]
-  const gradient = AVATAR_GRADIENTS[parseInt(doctor.id) % AVATAR_GRADIENTS.length]
-  const initials = doctor.name.replace(/^(BS\.|ThS\.BS\.|ThS\.|TS\.|GS\.TS\.)?\s*/i, "").trim().split(" ").slice(-2).map((p) => p[0]).join("").toUpperCase()
+  const numericId = parseInt(doctor.id.slice(-6), 16)
+  const gradientIndex = isNaN(numericId) ? 0 : numericId % AVATAR_GRADIENTS.length
+  const gradient = AVATAR_GRADIENTS[gradientIndex]
+  const initials = (doctor.name as string).replace(/^(BS\.|ThS\.BS\.|ThS\.|TS\.|GS\.|GS\.TS\.)?\s*/i, "").trim().split(" ").slice(-2).map((p: string) => p[0]).join("").toUpperCase()
 
   return (
     <>
@@ -141,9 +145,6 @@ export default function DoctorHistoryPage({ params }: { params: Promise<{ id: st
           <div className="flex-1 text-center md:text-left space-y-2">
             <div className="flex flex-col md:flex-row md:items-center gap-2">
               <h1 className="text-2xl font-extrabold text-blue-900 leading-tight">{doctor.name}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 w-fit mx-auto md:mx-0">
-                {doctor.role}
-              </span>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary w-fit mx-auto md:mx-0">
                 <Award className="size-3" /> {doctor.specialty}
               </span>
