@@ -116,7 +116,7 @@ export default function DoctorListPage() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
-  const [sortKey, setSortKey] = useState("Chuyên môn")
+  const [sortKey, setSortKey] = useState("Mới nhất")
   const [lockTarget, setLockTarget] = useState<{ id: string; name: string; status: string } | null>(null)
 
   const fetchDoctors = async () => {
@@ -141,6 +141,7 @@ export default function DoctorListPage() {
   const totalPages = Math.max(1, Math.ceil(doctors.length / itemsPerPage))
 
   const sortedDoctors = [...doctors].sort((a, b) => {
+    if (sortKey === "Mới nhất") return b.id.localeCompare(a.id)
     if (sortKey === "Chuyên môn") return a.specialty.localeCompare(b.specialty, "vi")
     if (sortKey === "Tên bác sĩ (A-Z)") return a.name.localeCompare(b.name, "vi")
     if (sortKey === "Bằng cấp") return a.degree.localeCompare(b.degree, "vi")
@@ -239,6 +240,7 @@ export default function DoctorListPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="Mới nhất">Mới nhất</SelectItem>
                 <SelectItem value="Chuyên môn">Chuyên môn</SelectItem>
                 <SelectItem value="Tên bác sĩ (A-Z)">Tên bác sĩ (A-Z)</SelectItem>
                 <SelectItem value="Bằng cấp">Bằng cấp</SelectItem>

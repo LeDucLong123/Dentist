@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import {
   Plus,
@@ -99,24 +99,44 @@ const ICON_GRADIENTS = [
 ]
 
 const FILTER_OPTIONS = ["Tất cả", "Đang áp dụng", "Ngừng áp dụng"]
-const SORT_OPTIONS = ["Tên dịch vụ", "Giá (cao → thấp)", "Giá (thấp → cao)"]
+const SORT_OPTIONS = ["Mới nhất", "Tên dịch vụ", "Giá (cao → thấp)", "Giá (thấp → cao)"]
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(price)
 }
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "Mãi mãi"
   return new Date(dateStr).toLocaleDateString("vi-VN")
 }
 
 export default function PricingPage() {
-  const [pricing, setPricing] = useState<PricingItem[]>(initialPricing)
+  const [pricing, setPricing] = useState<PricingItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState("Tất cả")
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortKey, setSortKey] = useState("Tên dịch vụ")
+  const [sortKey, setSortKey] = useState("Mới nhất")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
   const [lockTarget, setLockTarget] = useState<PricingItem | null>(null)
+
+  const fetchPricing = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/pricing")
+      if (!res.ok) throw new Error("Không thể tải danh sách bảng giá.")
+      const data = await res.json()
+      setPricing(data)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi khi tải dữ liệu bảng giá.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPricing()
+  }, [])
 
   const stats = useMemo(() => ({
     total: pricing.length,
@@ -133,6 +153,7 @@ export default function PricingPage() {
       result = result.filter((p) => p.serviceName.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))
     }
     result.sort((a, b) => {
+      if (sortKey === "Mới nhất") return b.id.localeCompare(a.id)
       if (sortKey === "Tên dịch vụ") return a.serviceName.localeCompare(b.serviceName, "vi")
       if (sortKey === "Giá (cao → thấp)") return b.standardPrice - a.standardPrice
       if (sortKey === "Giá (thấp → cao)") return a.standardPrice - b.standardPrice
@@ -145,13 +166,30 @@ export default function PricingPage() {
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / itemsPerPage))
   const paginated = filteredSorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const handleToggle = () => {
+  const handleToggle = async () => {
     if (!lockTarget) return
-    setPricing((prev) =>
-      prev.map((p) => p.id === lockTarget.id ? { ...p, status: p.status === "applied" ? "not_applied" : "applied" } : p)
-    )
-    toast.success(`Đã ${lockTarget.status === "applied" ? "ngừng áp dụng" : "kích hoạt"} bảng giá "${lockTarget.priceType}" – ${lockTarget.serviceName}.`)
-    setLockTarget(null)
+    const newStatus = lockTarget.status === "applied" ? "not_applied" : "applied"
+    const actionText = lockTarget.status === "applied" ? "ngừng áp dụng" : "kích hoạt"
+
+    try {
+      const res = await fetch(`/api/pricing/${lockTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || `Không thể ${actionText} bảng giá.`)
+
+      setPricing((prev) =>
+        prev.map((p) => p.id === lockTarget.id ? { ...p, status: newStatus } : p)
+      )
+      toast.success(`Đã ${actionText} bảng giá "${lockTarget.priceType}" – ${lockTarget.serviceName} thành công.`)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLockTarget(null)
+    }
   }
 
   return (
@@ -262,7 +300,12 @@ export default function PricingPage() {
 
         {/* Cards */}
         <div className="space-y-3">
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+              <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+              <p className="font-medium text-on-surface-variant">Đang tải danh sách bảng giá...</p>
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
               <Banknote className="size-10 mx-auto mb-3 opacity-20" />
               <p className="font-medium text-on-surface-variant">Không tìm thấy bảng giá nào</p>
@@ -342,7 +385,11 @@ export default function PricingPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Xóa Edit button vì bảng giá đóng băng */}
+                    <Link href={`/pricing/${item.id}/edit`}>
+                      <Button variant="ghost" size="icon-sm" className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl">
+                        <Edit2 className="size-4" />
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="icon-sm"

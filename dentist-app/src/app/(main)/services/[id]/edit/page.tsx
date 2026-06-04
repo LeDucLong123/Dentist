@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Stethoscope, Info, CheckCircle2, Lock } from "lucide-react"
@@ -14,26 +14,94 @@ import { Topbar } from "@/components/topbar"
 import { AvatarUpload } from "@/components/avatar-upload"
 import { FormSection } from "@/components/form-section"
 
-// Mock existing service data
-const MOCK_SERVICE = {
-  id: "DV001",
-  name: "Cấy ghép Implant",
-  category: "Răng sứ & Implant",
-  description: "Giải pháp phục hồi răng đã mất hiệu quả nhất hiện nay.",
-  bookable: true,
-}
-
-export default function EditServicePage() {
+export default function EditServicePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
-  const [bookable, setBookable] = useState(MOCK_SERVICE.bookable)
+  const [loading, setLoading] = useState(true)
+  const [service, setService] = useState<any | null>(null)
 
-  const handleSave = () => {
+  const [name, setName] = useState("")
+  const [category, setCategory] = useState("")
+  const [description, setDescription] = useState("")
+  const [bookable, setBookable] = useState(true)
+
+  useEffect(() => {
+    const fetchService = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch(`/api/services/${id}`)
+        if (!res.ok) throw new Error("Không thể tải thông tin dịch vụ.")
+        const data = await res.json()
+        setService(data)
+        setName(data.name)
+        setCategory(data.category)
+        setDescription(data.description)
+        setBookable(data.status === "active")
+      } catch (err: any) {
+        toast.error(err.message || "Đã xảy ra lỗi.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchService()
+  }, [id])
+
+  const handleSave = async () => {
+    if (!name || !category) {
+      toast.error("Vui lòng điền đầy đủ tên dịch vụ và chuyên khoa.")
+      return
+    }
+
     setIsSaving(true)
-    setTimeout(() => {
-      toast.success("Cập nhật thành công!", { description: `Dịch vụ "${MOCK_SERVICE.name}" đã được lưu.` })
+    try {
+      const res = await fetch(`/api/services/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          category,
+          description,
+          status: bookable ? "active" : "locked",
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Cập nhật dịch vụ thất bại.")
+      }
+
+      toast.success("Cập nhật thành công!", { description: `Dịch vụ "${name}" đã được lưu.` })
       router.push("/services")
-    }, 600)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm dịch vụ..." />
+        <div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center min-h-[300px]">
+          <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="font-medium text-on-surface-variant">Đang tải thông tin dịch vụ...</p>
+        </div>
+      </>
+    )
+  }
+
+  if (!service) {
+    return (
+      <>
+        <Topbar />
+        <div className="p-8 text-center text-on-surface-variant">
+          Không tìm thấy dịch vụ #{id}
+        </div>
+      </>
+    )
   }
 
   return (
@@ -57,7 +125,7 @@ export default function EditServicePage() {
             <div>
               <h1 className="text-2xl font-extrabold text-blue-900 tracking-tight">Chỉnh sửa dịch vụ</h1>
               <p className="text-sm text-on-surface-variant mt-0.5">
-                Cập nhật thông tin cho dịch vụ <span className="font-semibold text-on-surface">{MOCK_SERVICE.name}</span>.
+                Cập nhật thông tin cho dịch vụ <span className="font-semibold text-on-surface">{service.name}</span>.
               </p>
             </div>
           </div>
@@ -82,7 +150,7 @@ export default function EditServicePage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-on-surface-variant/60 font-medium">Mã dịch vụ</p>
-                  <p className="text-sm font-bold text-on-surface font-mono">{MOCK_SERVICE.id}</p>
+                  <p className="text-sm font-bold text-on-surface font-mono">{service.id}</p>
                 </div>
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant/20 shrink-0">
                   <Lock className="size-2.5" />
@@ -133,11 +201,15 @@ export default function EditServicePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Tên dịch vụ <span className="text-red-500">*</span></Label>
-                    <Input defaultValue={MOCK_SERVICE.name} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Chuyên khoa <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_SERVICE.category}>
+                    <Select value={category} onValueChange={(val) => setCategory(val || "")}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue />
                       </SelectTrigger>
@@ -152,14 +224,14 @@ export default function EditServicePage() {
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Mô tả dịch vụ</Label>
                     <Textarea
-                      defaultValue={MOCK_SERVICE.description}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                       className="min-h-[100px] bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 resize-none"
                     />
                   </div>
                 </div>
               </FormSection>
             </div>
-
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-1">

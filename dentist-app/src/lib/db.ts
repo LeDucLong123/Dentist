@@ -110,9 +110,114 @@ async function dbConnect() {
           await User.create(defaultDoctors)
           console.log("Auto-seeded default doctors successfully.")
         }
+
+        // Auto-seed default services if no service exists
+        const ServiceModel = (await import("@/models/Service")).default
+        const serviceExists = await ServiceModel.findOne({})
+        if (!serviceExists) {
+          const defaultServices = [
+            {
+              serviceId: "DV001",
+              name: "Cấy ghép Implant",
+              category: "Răng sứ & Implant",
+              status: "active",
+              description: "Giải pháp phục hồi răng đã mất hiệu quả nhất hiện nay.",
+            },
+            {
+              serviceId: "DV002",
+              name: "Chỉnh nha mắc cài kim loại",
+              category: "Chỉnh nha",
+              status: "active",
+              description: "Cải thiện khớp cắn và thẩm mỹ nụ cười.",
+            },
+            {
+              serviceId: "DV003",
+              name: "Tẩy trắng răng Laser",
+              category: "Thẩm mỹ",
+              status: "locked",
+              description: "Công nghệ làm trắng răng nhanh chóng, không ê buốt.",
+            },
+            {
+              serviceId: "DV004",
+              name: "Nhổ răng khôn",
+              category: "Tổng quát",
+              status: "active",
+              description: "Nhổ răng khôn mọc lệch, mọc ngầm bằng công nghệ siêu âm Piezotome.",
+            },
+            {
+              serviceId: "DV005",
+              name: "Bọc răng sứ Zirconia",
+              category: "Răng sứ & Implant",
+              status: "active",
+              description: "Phục hình thẩm mỹ với vật liệu sứ Zirconia cao cấp.",
+            },
+          ]
+          await ServiceModel.create(defaultServices)
+          console.log("Auto-seeded default services successfully.")
+        }
+
+        // Auto-seed default pricing if no pricing exists
+        const PricingModel = (await import("@/models/Pricing")).default
+        const pricingExists = await PricingModel.findOne({})
+        if (!pricingExists) {
+          const defaultPricing = [
+            {
+              pricingId: "BG001",
+              serviceId: "DV001",
+              serviceName: "Cấy ghép Implant",
+              priceType: "VIP",
+              standardPrice: 18000000,
+              validFrom: new Date("2026-05-01"),
+              validTo: new Date("2026-12-31"),
+              status: "applied",
+            },
+            {
+              pricingId: "BG002",
+              serviceId: "DV001",
+              serviceName: "Cấy ghép Implant",
+              priceType: "Thường",
+              standardPrice: 15000000,
+              validFrom: new Date("2026-01-01"),
+              validTo: new Date("2026-12-31"),
+              status: "applied",
+            },
+            {
+              pricingId: "BG003",
+              serviceId: "DV002",
+              serviceName: "Chỉnh nha mắc cài kim loại",
+              priceType: "Khuyến mãi",
+              standardPrice: 40000000,
+              validFrom: new Date("2026-05-15"),
+              validTo: new Date("2026-06-15"),
+              status: "applied",
+            },
+            {
+              pricingId: "BG004",
+              serviceId: "DV003",
+              serviceName: "Tẩy trắng răng Laser",
+              priceType: "Thường",
+              standardPrice: 2500000,
+              validFrom: new Date("2025-01-01"),
+              validTo: new Date("2025-12-31"),
+              status: "not_applied",
+            },
+            {
+              pricingId: "BG005",
+              serviceId: "DV004",
+              serviceName: "Nhổ răng khôn",
+              priceType: "Thường",
+              standardPrice: 1500000,
+              validFrom: new Date("2026-01-01"),
+              validTo: new Date("2026-12-31"),
+              status: "applied",
+            },
+          ]
+          await PricingModel.create(defaultPricing)
+          console.log("Auto-seeded default pricing successfully.")
+        }
       } catch (err) {
         (global as any).adminSeeded = false
-        console.error("Auto-seeding admin/doctors failed:", err)
+        console.error("Auto-seeding admin/doctors/services failed:", err)
       }
     }
   } catch (e) {

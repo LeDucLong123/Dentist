@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Banknote, Info, Calendar, CheckCircle2, Lock } from "lucide-react"
@@ -12,39 +12,114 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Topbar } from "@/components/topbar"
 import { FormSection } from "@/components/form-section"
 
-const MOCK_SERVICES = [
-  "Cấy ghép Implant Osstem",
-  "Cấy ghép Implant Straumann",
-  "Chỉnh nha mắc cài kim loại",
-  "Chỉnh nha mắc cài sứ",
-  "Tẩy trắng răng Laser",
-  "Nhổ răng khôn",
-  "Bọc răng sứ Zirconia",
-]
-
-const MOCK_PRICING = {
-  id: "BG001",
-  serviceName: "Cấy ghép Implant Osstem",
-  priceType: "VIP",
-  standardPrice: 18000000,
-  validFrom: "2026-05-01",
-  validTo: "2026-12-31",
-}
-
-function formatPrice(price: number) {
-  return new Intl.NumberFormat("vi-VN").format(price)
-}
-
-export default function EditPricingPage() {
+export default function EditPricingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [services, setServices] = useState<any[]>([])
+  const [pricing, setPricing] = useState<any | null>(null)
 
-  const handleSave = () => {
+  const [serviceId, setServiceId] = useState("")
+  const [serviceName, setServiceName] = useState("")
+  const [priceType, setPriceType] = useState("")
+  const [standardPrice, setStandardPrice] = useState("")
+  const [validFrom, setValidFrom] = useState("")
+  const [validTo, setValidTo] = useState("")
+  const [isForever, setIsForever] = useState(false)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        // 1. Fetch active services
+        const svcRes = await fetch("/api/services")
+        if (!svcRes.ok) throw new Error("Không thể tải danh sách dịch vụ.")
+        const svcData = await svcRes.json()
+        setServices(svcData.filter((s: any) => s.status === "active"))
+
+        // 2. Fetch pricing details
+        const priceRes = await fetch(`/api/pricing/${id}`)
+        if (!priceRes.ok) throw new Error("Không thể tải thông tin bảng giá.")
+        const priceData = await priceRes.json()
+        setPricing(priceData)
+        setServiceId(priceData.serviceId)
+        setServiceName(priceData.serviceName)
+        setPriceType(priceData.priceType)
+        setStandardPrice(String(priceData.standardPrice))
+        setValidFrom(priceData.validFrom)
+        setValidTo(priceData.validTo || "")
+        setIsForever(!priceData.validTo)
+      } catch (err: any) {
+        toast.error(err.message || "Đã xảy ra lỗi khi tải dữ liệu.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [id])
+
+  const handleSave = async () => {
+    if (!serviceName || !priceType || !standardPrice || !validFrom || (!isForever && !validTo)) {
+      toast.error("Vui lòng nhập đầy đủ thông tin bảng giá.")
+      return
+    }
+
     setIsSaving(true)
-    setTimeout(() => {
-      toast.success("Cập nhật thành công!", { description: `Bảng giá "${MOCK_PRICING.priceType}" – ${MOCK_PRICING.serviceName} đã được lưu.` })
+    try {
+      const res = await fetch(`/api/pricing/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId,
+          serviceName,
+          priceType,
+          standardPrice: Number(standardPrice),
+          validFrom,
+          validTo: isForever ? null : validTo,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || "Cập nhật bảng giá thất bại.")
+
+      toast.success("Cập nhật thành công!", { description: `Bảng giá "${priceType}" – ${serviceName} đã được lưu.` })
       router.push("/pricing")
-    }, 600)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Format pricing preview
+  const formatPrice = (price: string) => {
+    const num = Number(price)
+    if (isNaN(num) || !price) return "0"
+    return new Intl.NumberFormat("vi-VN").format(num)
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm bảng giá..." />
+        <div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center min-h-[300px]">
+          <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="font-medium text-on-surface-variant">Đang tải thông tin bảng giá...</p>
+        </div>
+      </>
+    )
+  }
+
+  if (!pricing) {
+    return (
+      <>
+        <Topbar />
+        <div className="p-8 text-center text-on-surface-variant">
+          Không tìm thấy bảng giá #{id}
+        </div>
+      </>
+    )
   }
 
   return (
@@ -68,7 +143,7 @@ export default function EditPricingPage() {
             <div>
               <h1 className="text-2xl font-extrabold text-blue-900 tracking-tight">Chỉnh sửa bảng giá</h1>
               <p className="text-sm text-on-surface-variant mt-0.5">
-                Cập nhật thông tin cho bảng giá <span className="font-semibold text-on-surface">{MOCK_PRICING.priceType}</span> – {MOCK_PRICING.serviceName}.
+                Cập nhật thông tin cho bảng giá <span className="font-semibold text-on-surface">{pricing.priceType}</span> – {pricing.serviceName}.
               </p>
             </div>
           </div>
@@ -83,8 +158,9 @@ export default function EditPricingPage() {
                 <Banknote className="size-7 text-white" />
               </div>
               <div>
-                <h4 className="font-bold text-blue-900 text-sm">{MOCK_PRICING.serviceName}</h4>
-                <p className="text-lg font-extrabold text-primary mt-1">{formatPrice(MOCK_PRICING.standardPrice)} ₫</p>
+                <h4 className="font-bold text-blue-900 text-sm truncate max-w-[200px] mx-auto">{serviceName || "Bảng giá"}</h4>
+                <p className="text-lg font-extrabold text-primary mt-1">{formatPrice(standardPrice)} ₫</p>
+                {priceType && <p className="text-xs text-on-surface-variant mt-1">Loại: {priceType}</p>}
               </div>
             </div>
 
@@ -96,7 +172,7 @@ export default function EditPricingPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-on-surface-variant/60 font-medium">Mã bảng giá</p>
-                  <p className="text-sm font-bold text-on-surface font-mono">{MOCK_PRICING.id}</p>
+                  <p className="text-sm font-bold text-on-surface font-mono">{pricing.id}</p>
                 </div>
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant/20 shrink-0">
                   <Lock className="size-2.5" />
@@ -131,18 +207,22 @@ export default function EditPricingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Dịch vụ áp dụng <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_PRICING.serviceName}>
+                    <Select value={serviceName} onValueChange={(val) => {
+                      setServiceName(val || "")
+                      const found = services.find(s => s.name === val)
+                      if (found) setServiceId(found.id)
+                    }}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {MOCK_SERVICES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Loại giá <span className="text-red-500">*</span></Label>
-                    <Select defaultValue={MOCK_PRICING.priceType}>
+                    <Select value={priceType} onValueChange={(val) => setPriceType(val || "")}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue />
                       </SelectTrigger>
@@ -155,7 +235,7 @@ export default function EditPricingPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Giá niêm yết (VNĐ) <span className="text-red-500">*</span></Label>
-                    <Input type="number" defaultValue={MOCK_PRICING.standardPrice} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
+                    <Input type="number" value={standardPrice} onChange={(e) => setStandardPrice(e.target.value)} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
                   </div>
                 </div>
               </FormSection>
@@ -165,14 +245,38 @@ export default function EditPricingPage() {
             <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-6">
               <FormSection icon={Calendar} title="Thời gian áp dụng">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForever(!isForever)
+                        if (!isForever) setValidTo("")
+                      }}
+                      className={`px-4 py-2.5 rounded-xl border flex items-center justify-between transition-all w-full text-left ${
+                        isForever ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-slate-50 border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider">Thời hạn áp dụng</p>
+                        <p className="text-xs opacity-85 mt-0.5">{isForever ? "Áp dụng vô thời hạn (mãi mãi)" : "Áp dụng trong khoảng thời gian xác định"}</p>
+                      </div>
+                      <div className={`w-8 h-4 rounded-full p-0.5 transition-all shrink-0 ${isForever ? "bg-blue-500 flex justify-end" : "bg-slate-300 flex justify-start"}`}>
+                        <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+                      </div>
+                    </button>
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Ngày bắt đầu <span className="text-red-500">*</span></Label>
-                    <Input type="date" defaultValue={MOCK_PRICING.validFrom} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
+                    <Input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Ngày kết thúc <span className="text-red-500">*</span></Label>
-                    <Input type="date" defaultValue={MOCK_PRICING.validTo} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
-                  </div>
+                  
+                  {!isForever && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Ngày kết thúc <span className="text-red-500">*</span></Label>
+                      <Input type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
+                    </div>
+                  )}
                 </div>
               </FormSection>
             </div>

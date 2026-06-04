@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Stethoscope, Info, CheckCircle2 } from "lucide-react"
+import { Stethoscope, Info, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,12 +19,42 @@ export default function NewServicePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [bookable, setBookable] = useState(true)
 
-  const handleSave = () => {
+  const [name, setName] = useState("")
+  const [category, setCategory] = useState("")
+  const [description, setDescription] = useState("")
+
+  const handleSave = async () => {
+    if (!name || !category) {
+      toast.error("Vui lòng điền đầy đủ tên dịch vụ và chuyên khoa.")
+      return
+    }
+
     setIsSaving(true)
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          category,
+          description,
+          status: bookable ? "active" : "locked",
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Tạo dịch vụ thất bại.")
+      }
+
       toast.success("Thêm dịch vụ thành công!", { description: "Dịch vụ mới đã được tạo trong hệ thống." })
       router.push("/services")
-    }, 600)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -107,11 +137,16 @@ export default function NewServicePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Tên dịch vụ <span className="text-red-500">*</span></Label>
-                    <Input placeholder="VD: Cấy ghép Implant Osstem" className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20" />
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="VD: Cấy ghép Implant Osstem"
+                      className="bg-surface-container-low border-none rounded-xl h-10 focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Chuyên khoa <span className="text-red-500">*</span></Label>
-                    <Select>
+                    <Select value={category} onValueChange={(val) => setCategory(val || "")}>
                       <SelectTrigger className="w-full bg-surface-container-low border-none rounded-xl h-10">
                         <SelectValue placeholder="Chọn chuyên khoa" />
                       </SelectTrigger>
@@ -126,6 +161,8 @@ export default function NewServicePage() {
                   <div className="sm:col-span-2 space-y-1.5">
                     <Label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Mô tả dịch vụ</Label>
                     <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                       placeholder="Mô tả chi tiết về dịch vụ..."
                       className="min-h-[100px] bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 resize-none"
                     />
@@ -133,7 +170,6 @@ export default function NewServicePage() {
                 </div>
               </FormSection>
             </div>
-
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-1">

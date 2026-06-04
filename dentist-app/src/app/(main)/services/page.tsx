@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import {
   Plus,
@@ -88,16 +88,35 @@ const ICON_COLORS = [
 ]
 
 const CATEGORIES = ["Tất cả", "Răng sứ & Implant", "Chỉnh nha", "Thẩm mỹ", "Tổng quát"]
-const SORT_OPTIONS = ["Tên (A-Z)", "Chuyên khoa", "Mã dịch vụ"]
+const SORT_OPTIONS = ["Mới nhất", "Tên (A-Z)", "Chuyên khoa", "Mã dịch vụ"]
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>(initialServices)
+  const [services, setServices] = useState<Service[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState("Tất cả")
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortKey, setSortKey] = useState("Tên (A-Z)")
+  const [sortKey, setSortKey] = useState("Mới nhất")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
   const [lockTarget, setLockTarget] = useState<Service | null>(null)
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/services")
+      if (!res.ok) throw new Error("Không thể tải danh sách dịch vụ.")
+      const data = await res.json()
+      setServices(data)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi khi tải dữ liệu dịch vụ.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchServices()
+  }, [])
 
   const stats = useMemo(() => ({
     total: services.length,
@@ -113,6 +132,7 @@ export default function ServicesPage() {
       result = result.filter((s) => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
     }
     result.sort((a, b) => {
+      if (sortKey === "Mới nhất") return b.id.localeCompare(a.id)
       if (sortKey === "Tên (A-Z)") return a.name.localeCompare(b.name, "vi")
       if (sortKey === "Chuyên khoa") return a.category.localeCompare(b.category, "vi")
       if (sortKey === "Mã dịch vụ") return a.id.localeCompare(b.id)
@@ -125,13 +145,30 @@ export default function ServicesPage() {
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / itemsPerPage))
   const paginated = filteredSorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const handleToggleLock = () => {
+  const handleToggleLock = async () => {
     if (!lockTarget) return
-    setServices((prev) =>
-      prev.map((s) => s.id === lockTarget.id ? { ...s, status: s.status === "active" ? "locked" : "active" } : s)
-    )
-    toast.success(`Đã ${lockTarget.status === "active" ? "khóa" : "mở khóa"} dịch vụ "${lockTarget.name}".`)
-    setLockTarget(null)
+    const newStatus = lockTarget.status === "active" ? "locked" : "active"
+    const actionText = lockTarget.status === "active" ? "khóa" : "mở khóa"
+
+    try {
+      const res = await fetch(`/api/services/${lockTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || `Không thể ${actionText} dịch vụ.`)
+
+      setServices((prev) =>
+        prev.map((s) => s.id === lockTarget.id ? { ...s, status: newStatus } : s)
+      )
+      toast.success(`Đã ${actionText} dịch vụ "${lockTarget.name}" thành công.`)
+    } catch (err: any) {
+      toast.error(err.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLockTarget(null)
+    }
   }
 
   return (
@@ -242,7 +279,12 @@ export default function ServicesPage() {
 
         {/* Cards */}
         <div className="space-y-3">
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+              <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+              <p className="font-medium text-on-surface-variant">Đang tải danh sách dịch vụ...</p>
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
               <Stethoscope className="size-10 mx-auto mb-3 opacity-20" />
               <p className="font-medium text-on-surface-variant">Không tìm thấy dịch vụ nào</p>

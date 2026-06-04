@@ -134,7 +134,7 @@ function getInitials(name: string) {
   return parts.slice(-2).map((p) => p[0]).join("").toUpperCase()
 }
 
-const SORT_OPTIONS = ["Tên (A-Z)", "Vai trò", "Hoạt động gần nhất"]
+const SORT_OPTIONS = ["Mới nhất", "Tên (A-Z)", "Vai trò", "Hoạt động gần nhất"]
 const ROLE_FILTERS: UserRole[] = ["all", "Bác sĩ", "Bệnh nhân", "Quản trị", "Lễ tân"]
 
 export default function UserListPage() {
@@ -142,7 +142,7 @@ export default function UserListPage() {
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<UserRole>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortKey, setSortKey] = useState("Tên (A-Z)")
+  const [sortKey, setSortKey] = useState("Mới nhất")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
   const [lockDialog, setLockDialog] = useState<{ open: boolean; userId: string | null; currentStatus: UserStatus | null }>({
@@ -181,6 +181,7 @@ export default function UserListPage() {
       result = result.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
     }
     result.sort((a, b) => {
+      if (sortKey === "Mới nhất") return b.id.localeCompare(a.id)
       if (sortKey === "Tên (A-Z)") return a.name.localeCompare(b.name, "vi")
       if (sortKey === "Vai trò") return a.role.localeCompare(b.role, "vi")
       return 0
