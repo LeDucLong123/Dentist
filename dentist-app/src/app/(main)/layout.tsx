@@ -11,8 +11,9 @@ export default async function AuthLayout({
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get("token")?.value
+  const decoded = token ? verifyToken(token) : null
 
-  if (!token || !verifyToken(token)) {
+  if (!decoded || decoded.role !== "admin") {
     redirect("/login")
   }
 

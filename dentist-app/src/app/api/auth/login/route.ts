@@ -36,6 +36,14 @@ export async function POST(req: Request) {
       )
     }
 
+    // Verify if user is admin
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { message: "Chỉ quản trị viên (role admin) mới có quyền truy cập hệ thống." },
+        { status: 403 }
+      )
+    }
+
     // Generate JWT access token
     const accessToken = signToken({
       id: user._id,
