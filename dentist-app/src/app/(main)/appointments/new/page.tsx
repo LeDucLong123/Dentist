@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,6 +12,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select"
 import {
   Popover,
@@ -35,13 +39,25 @@ import { format } from "date-fns"
 import { vi } from "date-fns/locale"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { SearchCombobox } from "@/components/search-combobox"
-import { PATIENTS, DOCTORS } from "@/lib/appointments-data"
 import { ServicesTable } from "./_components/services-table"
 import { checkDoctorDuty } from "@/lib/duty-data"
 
+const startTimesMorning = ["07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30"]
+const startTimesAfternoon = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30"]
+const startTimesEvening = ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30"]
+
+const endTimesMorning = ["07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00"]
+const endTimesAfternoon = ["12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"]
+const endTimesEvening = ["18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00"]
+
 export default function NewAppointmentPage() {
-  const [selectedPatient, setSelectedPatient] = useState<typeof PATIENTS[0] | null>(null)
-  const [selectedDoctor, setSelectedDoctor] = useState<typeof DOCTORS[0] | null>(null)
+  const router = useRouter()
+  const [patients, setPatients] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
+  const [weeklyDuty, setWeeklyDuty] = useState<any>({})
+
+  const [selectedPatient, setSelectedPatient] = useState<any | null>(null)
+  const [selectedDoctor, setSelectedDoctor] = useState<any | null>(null)
 
   // Form states
   const [date, setDate] = useState("")
@@ -52,22 +68,111 @@ export default function NewAppointmentPage() {
   
   // Services
   const [items, setItems] = useState<{ id: string, name: string, qty: number, unit: string, price: number, type: "vip" | "thuong" | "khuyenmai" }[]>([
-    { id: "1", name: "Khám tổng quát", qty: 1, unit: "lần", price: 0, type: "thuong" }
+    { id: "1", name: "", qty: 1, unit: "lần", price: 0, type: "thuong" }
   ])
   
   const [discount, setDiscount] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const patientRes = await fetch("/api/users")
+        if (patientRes.ok) {
+          const users = await patientRes.json()
+          setPatients(users.filter((u: any) => u.role === "Bệnh nhân"))
+        }
+        const docRes = await fetch("/api/doctors")
+        if (docRes.ok) {
+          const docs = await docRes.json()
+          setDoctors(docs)
+        }
+        const dutyRes = await fetch("/api/duty")
+        if (dutyRes.ok) {
+          const dutyData = await dutyRes.json()
+          setWeeklyDuty(dutyData)
+        }
+      } catch (err) {
+        console.error("Lỗi tải thông tin:", err)
+      }
+    }
+    loadOptions()
+  }, [])
 
   const dutyWarning = useMemo(() => {
     if (!selectedDoctor || !date || !startTime) return null
-    const result = checkDoctorDuty(selectedDoctor.name, date, startTime)
+    const result = checkDoctorDuty(selectedDoctor.name, date, startTime, weeklyDuty, doctors)
     if (!result.hasDuty) {
       return result.message
     }
     return null
-  }, [selectedDoctor, date, startTime])
+  }, [selectedDoctor, date, startTime, weeklyDuty, doctors])
 
-  const patientItems = PATIENTS.map((p) => ({ id: p.id, name: p.name, sub: p.phone }))
-  const doctorItems = DOCTORS.map((d) => ({ id: d.id, name: d.name, sub: d.specialty }))
+  const patientItems = patients.map((p) => ({ id: p.id, name: p.name, sub: p.phone }))
+  const doctorItems = doctors.map((d) => ({ id: d.id, name: d.name, sub: d.specialty }))
+
+  const handleCreateAppointment = async () => {
+    if (!selectedPatient) {
+      toast.error("Vui lòng chọn bệnh nhân.")
+      return
+    }
+    if (!selectedDoctor) {
+      toast.error("Vui lòng chọn bác sĩ.")
+      return
+    }
+    if (!date) {
+      toast.error("Vui lòng chọn ngày khám.")
+      return
+    }
+    if (!startTime || !endTime) {
+      toast.error("Vui lòng chọn thời gian bắt đầu và kết thúc.")
+      return
+    }
+    if (startTime >= endTime) {
+      toast.error("Giờ kết thúc phải lớn hơn giờ bắt đầu.")
+      return
+    }
+    if (!items || items.length === 0 || items.some(item => !item.name || item.name.trim() === "")) {
+      toast.error("Vui lòng chọn dịch vụ.")
+      return
+    }
+    if (!room) {
+      toast.error("Vui lòng chọn phòng khám.")
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const totalCost = items.reduce((sum, item) => sum + (item.price * item.qty), 0)
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient: selectedPatient,
+          doctor: selectedDoctor,
+          date,
+          start: startTime,
+          end: endTime,
+          room,
+          note,
+          items,
+          price: totalCost,
+          discount,
+          paid: 0,
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || "Tạo lịch khám thất bại.")
+
+      toast.success("Đặt lịch khám thành công!")
+      router.push("/appointments")
+    } catch (error: any) {
+      toast.error(error.message || "Đã xảy ra lỗi.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <>
@@ -98,9 +203,13 @@ export default function NewAppointmentPage() {
                 Hủy bỏ
               </Button>
             </Link>
-            <Button className="h-9 rounded-xl border-transparent bg-primary text-on-primary gap-1.5 text-sm font-semibold shadow-md shadow-primary/20 hover:bg-primary/90">
+            <Button 
+              onClick={handleCreateAppointment}
+              disabled={submitting}
+              className="h-9 rounded-xl border-transparent bg-primary text-on-primary gap-1.5 text-sm font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40"
+            >
               <CheckCircle2 className="size-4" />
-              Xác nhận lịch hẹn
+              {submitting ? "Đang xử lý..." : "Xác nhận lịch hẹn"}
             </Button>
           </div>
         </div>
@@ -155,9 +264,24 @@ export default function NewAppointmentPage() {
                         <SelectValue placeholder="Chọn giờ" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 24 }).flatMap((_, i) => [`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:30`]).filter(t => t >= "07:00" && t <= "18:00").map(time => (
-                          <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
-                        ))}
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-slate-400 bg-slate-50 px-2.5 py-1 uppercase tracking-wider">Ca Sáng (07:00 - 12:00)</SelectLabel>
+                          {startTimesMorning.map(time => (
+                            <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-slate-400 bg-slate-50 px-2.5 py-1 uppercase tracking-wider">Ca Chiều (12:00 - 18:00)</SelectLabel>
+                          {startTimesAfternoon.map(time => (
+                            <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-indigo-500 bg-indigo-50/50 px-2.5 py-1 uppercase tracking-wider">Ca Tối (18:00 - 22:00)</SelectLabel>
+                          {startTimesEvening.map(time => (
+                            <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
@@ -168,9 +292,24 @@ export default function NewAppointmentPage() {
                         <SelectValue placeholder="Chọn giờ" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 24 }).flatMap((_, i) => [`${String(i).padStart(2, '0')}:00`, `${String(i).padStart(2, '0')}:30`]).filter(t => t >= "07:00" && t <= "18:00").map(time => (
-                          <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
-                        ))}
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-slate-400 bg-slate-50 px-2.5 py-1 uppercase tracking-wider">Ca Sáng (07:00 - 12:00)</SelectLabel>
+                          {endTimesMorning.map(time => (
+                            <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-slate-400 bg-slate-50 px-2.5 py-1 uppercase tracking-wider">Ca Chiều (12:00 - 18:00)</SelectLabel>
+                          {endTimesAfternoon.map(time => (
+                            <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel className="font-bold text-[10px] text-indigo-500 bg-indigo-50/50 px-2.5 py-1 uppercase tracking-wider">Ca Tối (18:00 - 22:00)</SelectLabel>
+                          {endTimesEvening.map(time => (
+                            <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
@@ -182,10 +321,14 @@ export default function NewAppointmentPage() {
                       <SelectValue placeholder="Chọn phòng..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Phòng Khám 01">Phòng Khám 01 (Tổng quát)</SelectItem>
-                      <SelectItem value="Phòng Khám 02">Phòng Khám 02 (Chỉnh nha)</SelectItem>
-                      <SelectItem value="Phòng Khám VIP">Phòng Khám VIP</SelectItem>
-                      <SelectItem value="Phòng Phẫu Thuật">Phòng Phẫu Thuật</SelectItem>
+                      <SelectItem value="Phòng Khám 01">Phòng Khám 01</SelectItem>
+                      <SelectItem value="Phòng Khám 02">Phòng Khám 02</SelectItem>
+                      <SelectItem value="Phòng Khám 03">Phòng Khám 03</SelectItem>
+                      <SelectItem value="Phòng Khám 04">Phòng Khám 04</SelectItem>
+                      <SelectItem value="Phòng Khám 05">Phòng Khám 05</SelectItem>
+                      <SelectItem value="Phòng Khám 06">Phòng Khám 06</SelectItem>
+                      <SelectItem value="Phòng Khám 07">Phòng Khám 07</SelectItem>
+                      <SelectItem value="Phòng Khám 08">Phòng Khám 08</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -205,7 +348,7 @@ export default function NewAppointmentPage() {
                 <SearchCombobox
                   items={patientItems}
                   value={null}
-                  onSelect={(item) => setSelectedPatient(PATIENTS.find(p => p.id === item?.id) ?? null)}
+                  onSelect={(item) => setSelectedPatient(patients.find(p => p.id === item?.id) ?? null)}
                   placeholder="Tìm bệnh nhân..."
                   icon={User}
                 />
@@ -256,7 +399,7 @@ export default function NewAppointmentPage() {
                 <SearchCombobox
                   items={doctorItems}
                   value={null}
-                  onSelect={(item) => setSelectedDoctor(DOCTORS.find(d => d.id === item?.id) ?? null)}
+                  onSelect={(item) => setSelectedDoctor(doctors.find(d => d.id === item?.id) ?? null)}
                   placeholder="Tìm bác sĩ..."
                   icon={Stethoscope}
                 />

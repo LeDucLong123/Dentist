@@ -3,10 +3,10 @@
 import { useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
-import { DoctorPayrollItem, calcAptDuration, getMappedDoctorName } from "@/lib/payroll-data"
+import { DoctorPayrollItem, calcAptDuration } from "@/lib/payroll-data"
 import { fmtCurrency } from "@/lib/date-utils"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import {
   Printer,
   Download,
@@ -37,15 +37,8 @@ export function PayslipModal({
   // Resolve appointments for this doctor in this month
   const doctorAppointments = useMemo(() => {
     if (!payroll) return []
-    const searchName = getMappedDoctorName(payroll.name)
-    return APPOINTMENTS.filter((a) => {
-      const isCompleted = a.status === "completed"
-      const isDoctorMatch = a.doctor.toLowerCase().includes(searchName.toLowerCase()) || 
-                            searchName.toLowerCase().includes(a.doctor.toLowerCase())
-      const isInMonth = a.date.startsWith(yearMonth)
-      return isCompleted && isDoctorMatch && isInMonth
-    }).map(a => getAppointmentDetail(a.id))
-  }, [payroll, yearMonth])
+    return payroll.appointments || []
+  }, [payroll])
 
   if (!payroll) return null
 
@@ -169,7 +162,12 @@ export function PayslipModal({
                       const [y, m, d] = apt.date.split("-").map(Number)
                       const dayOfWeek = new Date(y, m - 1, d).getDay()
                       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-                      const shiftCoef = isWeekend ? (payroll.weekendCoef ?? 1.5) : 1.0
+                      const isNight = apt.start >= "18:00"
+                      
+                      const weekendMultiplier = isWeekend ? (payroll.weekendCoef ?? 1.5) : 1.0
+                      const nightMultiplier = isNight ? (payroll.nightCoef ?? 1.5) : 1.0
+                      const shiftCoef = Math.max(weekendMultiplier, nightMultiplier)
+                      
                       const converted = duration * shiftCoef
                       const aptPay = payroll.coefficient * hourlyRate * converted
                       return (
@@ -187,9 +185,16 @@ export function PayslipModal({
                             <span className="text-[10px] text-slate-400 block font-mono">({apt.start} - {apt.end})</span>
                           </td>
                           <td className="px-4 py-2.5 text-center">
-                            {isWeekend ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                x{shiftCoef.toFixed(1)} (Cuối tuần)
+                            {shiftCoef > 1.0 ? (
+                              <span className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold border",
+                                isNight && isWeekend
+                                  ? "bg-purple-50 text-purple-750 border-purple-200"
+                                  : isNight
+                                  ? "bg-indigo-50 text-indigo-750 border-indigo-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                              )}>
+                                x{shiftCoef.toFixed(1)} ({isNight && isWeekend ? "Tối/Cuối tuần" : isNight ? "Ca tối" : "Cuối tuần"})
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">

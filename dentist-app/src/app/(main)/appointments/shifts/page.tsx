@@ -17,7 +17,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Topbar } from "@/components/topbar"
-import { initialDoctors } from "@/app/(main)/doctors/page"
 import { 
   WeeklyDuty, 
   ShiftType, 
@@ -30,12 +29,35 @@ import { cn } from "@/lib/utils"
 
 export default function WeeklyShiftsPage() {
   const router = useRouter()
+  const [doctors, setDoctors] = useState<any[]>([])
   const [weeklyDuty, setWeeklyDuty] = useState<WeeklyDuty>({})
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0)
+  const [loading, setLoading] = useState(true)
 
-  // Load weekly duty from localStorage
+  // Load weekly duty and doctors from API
   useEffect(() => {
-    setWeeklyDuty(getSavedWeeklyDuty())
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const docRes = await fetch("/api/doctors")
+        if (!docRes.ok) throw new Error("Không thể tải danh sách bác sĩ.")
+        const docsData = await docRes.json()
+        setDoctors(docsData)
+
+        const dutyRes = await fetch("/api/duty")
+        if (dutyRes.ok) {
+          const dutyData = await dutyRes.json()
+          setWeeklyDuty(dutyData)
+        } else {
+          setWeeklyDuty({})
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Lỗi tải dữ liệu ca trực.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
   }, [])
 
   // Calculate actual dates of the current week (Monday to Sunday)
@@ -92,7 +114,8 @@ export default function WeeklyShiftsPage() {
           ...doctorSchedule,
           [dayOfWeek]: {
             ...daySchedule,
-            shift
+            shift,
+            room: shift === "off" ? "" : daySchedule.room
           }
         }
       }
@@ -100,36 +123,74 @@ export default function WeeklyShiftsPage() {
     })
   }
 
-  const handleSave = () => {
-    saveWeeklyDuty(weeklyDuty)
-    toast.success("Lưu lịch trực tuần bác sĩ thành công!", {
-      description: "Lịch trực đã được ghi nhận và đồng bộ trực tiếp lên hệ thống đặt lịch khám."
+  const handleRoomChange = (doctorId: string, dayOfWeek: number, room: string) => {
+    if (isPastDay(dayOfWeek)) {
+      toast.error("Không thể thay đổi phòng trực của ngày đã qua!")
+      return
+    }
+    setWeeklyDuty((prev) => {
+      const doctorSchedule = prev[doctorId] || {}
+      const daySchedule = doctorSchedule[dayOfWeek] || { shift: "off" }
+      
+      return {
+        ...prev,
+        [doctorId]: {
+          ...doctorSchedule,
+          [dayOfWeek]: {
+            ...daySchedule,
+            room
+          }
+        }
+      }
     })
+  }
+
+  const handleSave = async () => {
+    try {
+      const res = await fetch("/api/duty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeklyDuty })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || "Không thể lưu lịch trực.")
+
+      saveWeeklyDuty(weeklyDuty)
+      toast.success("Lưu lịch trực tuần bác sĩ thành công!", {
+        description: "Lịch trực đã được ghi nhận và đồng bộ trực tiếp lên hệ thống đặt lịch khám."
+      })
+    } catch (err: any) {
+      toast.error(err.message || "Lỗi khi lưu lịch trực bác sĩ.")
+    }
   }
 
   const handleAutoArrange = () => {
     const nextDuty: WeeklyDuty = { ...weeklyDuty }
     const days = [1, 2, 3, 4, 5, 6, 0] // T2 -> CN
     
-    // Clean, pre-defined schedules for the 4 doctors to ensure full, optimal coverage without overlap
-    const schedules: Record<string, Record<number, ShiftType>> = {
-      "BS001": { 1: "morning", 2: "afternoon", 3: "full_day", 4: "off", 5: "morning", 6: "afternoon", 0: "off" },
-      "BS002": { 1: "afternoon", 2: "morning", 3: "off", 4: "full_day", 5: "afternoon", 6: "morning", 0: "off" },
-      "BS003": { 1: "full_day", 2: "off", 3: "morning", 4: "afternoon", 5: "full_day", 6: "off", 0: "off" },
-      "BS004": { 1: "off", 2: "full_day", 3: "afternoon", 4: "morning", 5: "off", 6: "full_day", 0: "off" },
-    }
+    // Shift rotation list: morning, afternoon, evening, off
+    const shiftRotation: ShiftType[][] = [
+      ["morning", "afternoon", "evening", "off", "morning", "afternoon", "off"], // Doctor 0
+      ["afternoon", "evening", "off", "morning", "afternoon", "evening", "off"], // Doctor 1
+      ["evening", "off", "morning", "afternoon", "evening", "off", "off"],       // Doctor 2
+      ["morning", "afternoon", "evening", "off", "morning", "afternoon", "off"], // Doctor 3
+    ]
 
     let modifiedCount = 0
-    initialDoctors.forEach((doc) => {
+    doctors.forEach((doc, docIdx) => {
       if (!nextDuty[doc.id]) {
         nextDuty[doc.id] = {}
       }
-      days.forEach((day) => {
+      
+      const rot = shiftRotation[docIdx % shiftRotation.length]
+      
+      days.forEach((day, dayIdx) => {
         if (!isPastDay(day)) {
-          const assignedShift = schedules[doc.id]?.[day] || "off"
+          const assignedShift = rot[dayIdx] || "off"
           nextDuty[doc.id][day] = {
             shift: assignedShift,
-            room: nextDuty[doc.id][day]?.room || ""
+            room: ""
           }
           modifiedCount++
         }
@@ -146,6 +207,8 @@ export default function WeeklyShiftsPage() {
       description: "Hệ thống đã phân bổ ca trực cho các ngày chưa qua. Hãy bấm 'Lưu lịch trực' để áp dụng."
     })
   }
+
+
 
   const weekdayHeaders = [
     { label: "Thứ Hai", dayIndex: 1 },
@@ -290,61 +353,76 @@ export default function WeeklyShiftsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
-                {initialDoctors.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-50/20 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                          <Stethoscope className="size-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800">{doc.name}</p>
-                          <p className="text-[10px] text-slate-400 font-semibold">{doc.role} · {doc.specialty}</p>
-                        </div>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-16 text-center">
+                      <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-2" />
+                      <p className="text-xs text-on-surface-variant font-medium">Đang tải danh sách bác sĩ và ca trực...</p>
                     </td>
-                    
-                    {weekdayHeaders.map((head, idx) => {
-                      const schedule = weeklyDuty[doc.id]?.[head.dayIndex] || { shift: "off", room: "" }
-                      const date = weekDates[idx]
-                      const isPast = date ? (() => {
-                        const today = new Date()
-                        today.setHours(0, 0, 0, 0)
-                        const compareDate = new Date(date)
-                        compareDate.setHours(0, 0, 0, 0)
-                        return compareDate < today
-                      })() : false
-                      return (
-                        <td key={head.dayIndex} className="px-2 py-3 text-center">
-                          <div className="flex items-center max-w-[130px] mx-auto h-9">
-                            {/* Shift Type Select */}
-                            <select
-                              value={schedule.shift}
-                              disabled={isPast}
-                              onChange={(e) => handleShiftChange(doc.id, head.dayIndex, e.target.value as ShiftType)}
-                              className={cn(
-                                "w-full text-center py-1.5 px-2.5 rounded-lg text-xs font-bold outline-none border transition-all",
-                                isPast ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-                                schedule.shift === "off"
-                                  ? "bg-slate-50 text-slate-400 border-slate-200"
-                                  : schedule.shift === "morning"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : schedule.shift === "afternoon"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                              )}
-                            >
-                              <option value="off">Nghỉ</option>
-                              <option value="morning">Ca Sáng</option>
-                              <option value="afternoon">Ca Chiều</option>
-                              <option value="full_day">Cả ngày</option>
-                            </select>
-                          </div>
-                        </td>
-                      )
-                    })}
                   </tr>
-                ))}
+                ) : doctors.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-16 text-center text-xs text-on-surface-variant italic font-medium">
+                      Không tìm thấy bác sĩ nào để phân ca trực.
+                    </td>
+                  </tr>
+                ) : (
+                  doctors.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-slate-50/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                            <Stethoscope className="size-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800">{doc.name}</p>
+                            <p className="text-[10px] text-slate-400 font-semibold">{doc.degree} · {doc.specialty}</p>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {weekdayHeaders.map((head, idx) => {
+                        const schedule = weeklyDuty[doc.id]?.[head.dayIndex] || { shift: "off", room: "" }
+                        const date = weekDates[idx]
+                        const isPast = date ? (() => {
+                          const today = new Date()
+                          today.setHours(0, 0, 0, 0)
+                          const compareDate = new Date(date)
+                          compareDate.setHours(0, 0, 0, 0)
+                          return compareDate < today
+                        })() : false
+                        return (
+                          <td key={head.dayIndex} className="px-2 py-3 text-center">
+                            <div className="flex items-center max-w-[130px] mx-auto h-9">
+                              {/* Shift Type Select */}
+                              <select
+                                value={schedule.shift}
+                                disabled={isPast}
+                                onChange={(e) => handleShiftChange(doc.id, head.dayIndex, e.target.value as ShiftType)}
+                                className={cn(
+                                  "w-full text-center py-1.5 px-2.5 rounded-lg text-xs font-bold outline-none border transition-all",
+                                  isPast ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                                 schedule.shift === "off"
+                                    ? "bg-slate-50 text-slate-400 border-slate-200"
+                                    : schedule.shift === "morning"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : schedule.shift === "afternoon"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                )}
+                              >
+                                <option value="off">Nghỉ</option>
+                                <option value="morning">Ca Sáng</option>
+                                <option value="afternoon">Ca Chiều</option>
+                                <option value="evening">Ca Tối</option>
+                              </select>
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

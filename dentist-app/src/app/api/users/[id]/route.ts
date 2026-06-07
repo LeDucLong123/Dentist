@@ -57,6 +57,8 @@ export async function GET(
       specialty: user.specialty || "cử nhân",
       joinDate: formatJoinDate(user.createdAt),
       lastActive: "Hôm nay, " + new Date(user.updatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      dob: user.dob || "",
+      address: user.address || "",
     })
   } catch (error: any) {
     console.error("GET User Error:", error)
@@ -85,7 +87,7 @@ export async function PATCH(
     await dbConnect()
     
     const body = await req.json()
-    const { status, name, email, phone, role, specialty, password } = body
+    const { status, name, email, phone, role, specialty, password, dob, address } = body
 
     const user = await User.findById(id)
     if (!user) {
@@ -150,6 +152,13 @@ export async function PATCH(
         return NextResponse.json({ message: "Mật khẩu phải từ 6 ký tự trở lên." }, { status: 400 })
       }
       user.password = password
+    }
+
+    if (dob !== undefined) {
+      user.dob = dob
+    }
+    if (address !== undefined) {
+      user.address = address
     }
 
     await user.save()

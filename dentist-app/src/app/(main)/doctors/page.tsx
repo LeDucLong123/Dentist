@@ -53,7 +53,7 @@ export const initialDoctors: Doctor[] = [
   {
     id: "2",
     name: "ThS.BS. Nguyễn Minh Thư",
-    role: "BS. Chính",
+    role: "BS Chính",
     degree: "Thạc sĩ",
     specialty: "Chỉnh nha (Niềng răng)",
     phone: "0932 888 999",
@@ -64,7 +64,7 @@ export const initialDoctors: Doctor[] = [
   {
     id: "3",
     name: "BS. Lê Hoàng Vũ",
-    role: "BS. Phụ",
+    role: "BS Phụ",
     degree: "BSCK I",
     specialty: "Nha khoa Tổng quát",
     phone: "0977 111 222",
@@ -75,7 +75,7 @@ export const initialDoctors: Doctor[] = [
   {
     id: "4",
     name: "BS. Trần Mai Anh",
-    role: "BS. Chính",
+    role: "BS Chính",
     degree: "BSCK II",
     specialty: "Nha khoa Thẩm mỹ",
     phone: "0988 333 444",
@@ -86,7 +86,7 @@ export const initialDoctors: Doctor[] = [
   {
     id: "5",
     name: "BS. Đỗ Quang Khải",
-    role: "BS. Phụ",
+    role: "BS Phụ",
     degree: "Thạc sĩ",
     specialty: "Nha khoa Trẻ em",
     phone: "0912 555 666",

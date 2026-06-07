@@ -4,6 +4,7 @@ export interface PayrollConfig {
   hourlyRate: number
   coefDegree: Record<string, number>
   weekendCoef: number
+  nightCoef: number
   baseSalaries: Record<string, number>
 }
 
@@ -19,10 +20,11 @@ export const DEFAULT_PAYROLL_CONFIG: PayrollConfig = {
     "Giáo sư": 2.5
   },
   weekendCoef: 1.5,
+  nightCoef: 1.5,
   baseSalaries: {
     "Trưởng khoa": 0,
-    "BS. Chính": 0,
-    "BS. Phụ": 0,
+    "BS Chính": 0,
+    "BS Phụ": 0,
     "Bác sĩ": 0
   }
 }
@@ -52,6 +54,7 @@ export interface DoctorPayrollItem {
   degree: string
   coefficient: number
   weekendCoef: number
+  nightCoef: number
   baseSalary: number
   appointmentsCount: number
   actualHours: number
@@ -61,24 +64,41 @@ export interface DoctorPayrollItem {
   allowance: number
   deduction: number
   netSalary: number
+  appointments?: any[]
 }
 
 export function getDoctorPayroll(
   doctor: { id: string; name: string; role: string; degree: string },
   yearMonth: string, // format: "YYYY-MM"
-  config: PayrollConfig = DEFAULT_PAYROLL_CONFIG
+  config: PayrollConfig = DEFAULT_PAYROLL_CONFIG,
+  appointmentsList?: any[]
 ): DoctorPayrollItem {
   // Resolve mapping for mock data
   const searchName = getMappedDoctorName(doctor.name)
   
   // Find completed appointments in the month
-  const completedApts = APPOINTMENTS.filter((a) => {
-    const isCompleted = a.status === "completed"
-    const isDoctorMatch = a.doctor.toLowerCase().includes(searchName.toLowerCase()) || 
-                          searchName.toLowerCase().includes(a.doctor.toLowerCase())
-    const isInMonth = a.date.startsWith(yearMonth)
-    return isCompleted && isDoctorMatch && isInMonth
-  }).map(a => getAppointmentDetail(a.id))
+  let completedApts: any[] = []
+  
+  if (appointmentsList) {
+    completedApts = appointmentsList.filter((a) => {
+      const isCompleted = a.status === "completed"
+      const docId = doctor.id || (doctor as any)._id?.toString()
+      const isDoctorMatch = 
+        (a.doctorId && a.doctorId.toString() === docId) ||
+        (a.doctor && (a.doctor.toLowerCase().includes(searchName.toLowerCase()) || 
+                      searchName.toLowerCase().includes(a.doctor.toLowerCase())))
+      const isInMonth = a.date && a.date.startsWith(yearMonth)
+      return isCompleted && isDoctorMatch && isInMonth
+    })
+  } else {
+    completedApts = APPOINTMENTS.filter((a) => {
+      const isCompleted = a.status === "completed"
+      const isDoctorMatch = a.doctor.toLowerCase().includes(searchName.toLowerCase()) || 
+                            searchName.toLowerCase().includes(a.doctor.toLowerCase())
+      const isInMonth = a.date.startsWith(yearMonth)
+      return isCompleted && isDoctorMatch && isInMonth
+    }).map(a => getAppointmentDetail(a.id))
+  }
 
   // Calculate hours and pay
   let actualHours = 0
@@ -87,13 +107,18 @@ export function getDoctorPayroll(
   
   const coefficient = config.coefDegree[doctor.degree] ?? 1.3
   const weekendCoef = config.weekendCoef ?? 1.5
+  const nightCoef = config.nightCoef ?? 1.5
 
   completedApts.forEach((apt) => {
     const hours = calcAptDuration(apt.start, apt.end)
     const [y, m, d] = apt.date.split("-").map(Number)
     const dayOfWeek = new Date(y, m - 1, d).getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-    const shiftCoef = isWeekend ? weekendCoef : 1.0
+    const isNight = apt.start >= "18:00"
+
+    const weekendMultiplier = isWeekend ? weekendCoef : 1.0
+    const nightMultiplier = isNight ? nightCoef : 1.0
+    const shiftCoef = Math.max(weekendMultiplier, nightMultiplier)
     
     const converted = hours * shiftCoef
     const pay = converted * coefficient * config.hourlyRate
@@ -116,6 +141,7 @@ export function getDoctorPayroll(
     degree: doctor.degree,
     coefficient,
     weekendCoef,
+    nightCoef,
     baseSalary,
     appointmentsCount: completedApts.length,
     actualHours,
@@ -124,6 +150,14 @@ export function getDoctorPayroll(
     overtimePay: netSalary,
     allowance,
     deduction,
-    netSalary
+    netSalary,
+    appointments: completedApts.map(apt => ({
+      id: apt.appointmentId || apt.id,
+      patient: apt.patient,
+      date: apt.date,
+      start: apt.start,
+      end: apt.end,
+      status: apt.status
+    }))
   }
 }

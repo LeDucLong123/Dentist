@@ -1,6 +1,6 @@
 import { initialDoctors, Doctor } from "@/app/(main)/doctors/page"
 
-export type ShiftType = "morning" | "afternoon" | "full_day" | "off"
+export type ShiftType = "morning" | "afternoon" | "evening" | "off"
 
 export interface DutyShift {
   doctorId: string
@@ -23,57 +23,11 @@ export interface WeeklyDuty {
 export const SHIFT_LABELS: Record<ShiftType, string> = {
   morning: "Sáng (08:00 - 12:00)",
   afternoon: "Chiều (13:30 - 17:30)",
-  full_day: "Cả ngày (08:00 - 17:30)",
+  evening: "Tối (18:00 - 22:00)",
   off: "Nghỉ"
 }
 
-export const DEFAULT_WEEKLY_DUTY: WeeklyDuty = {
-  "1": { // BS. Phạm Thành Nam
-    1: { shift: "morning", room: "Phòng 3A" },
-    2: { shift: "morning", room: "Phòng 3A" },
-    3: { shift: "full_day", room: "Phòng 3A" },
-    4: { shift: "morning", room: "Phòng 3A" },
-    5: { shift: "morning", room: "Phòng 3A" },
-    6: { shift: "off", room: "" },
-    0: { shift: "off", room: "" }
-  },
-  "2": { // ThS.BS. Nguyễn Minh Thư
-    1: { shift: "afternoon", room: "Phòng 2B" },
-    2: { shift: "afternoon", room: "Phòng 2B" },
-    3: { shift: "off", room: "" },
-    4: { shift: "afternoon", room: "Phòng 2B" },
-    5: { shift: "full_day", room: "Phòng 2B" },
-    6: { shift: "morning", room: "Phòng 2B" },
-    0: { shift: "off", room: "" }
-  },
-  "3": { // BS. Lê Hoàng Vũ
-    1: { shift: "morning", room: "Phòng 1A" },
-    2: { shift: "morning", room: "Phòng 1A" },
-    3: { shift: "morning", room: "Phòng 1A" },
-    4: { shift: "off", room: "" },
-    5: { shift: "afternoon", room: "Phòng 1A" },
-    6: { shift: "off", room: "" },
-    0: { shift: "off", room: "" }
-  },
-  "4": { // BS. Trần Mai Anh
-    1: { shift: "full_day", room: "Phòng 1B" },
-    2: { shift: "off", room: "" },
-    3: { shift: "afternoon", room: "Phòng 1B" },
-    4: { shift: "full_day", room: "Phòng 1B" },
-    5: { shift: "morning", room: "Phòng 1B" },
-    6: { shift: "morning", room: "Phòng 1B" },
-    0: { shift: "off", room: "" }
-  },
-  "5": { // BS. Đỗ Quang Khải
-    1: { shift: "off", room: "" },
-    2: { shift: "full_day", room: "Phòng 2A" },
-    3: { shift: "morning", room: "Phòng 2A" },
-    4: { shift: "afternoon", room: "Phòng 2A" },
-    5: { shift: "off", room: "" },
-    6: { shift: "afternoon", room: "Phòng 2A" },
-    0: { shift: "off", room: "" }
-  }
-}
+export const DEFAULT_WEEKLY_DUTY: WeeklyDuty = {}
 
 // Lấy lịch trực trong localStorage hoặc trả về mặc định
 export function getSavedWeeklyDuty(): WeeklyDuty {
@@ -94,15 +48,21 @@ export function saveWeeklyDuty(duty: WeeklyDuty) {
 }
 
 // Lấy danh sách trực của 1 ngày cụ thể
-export function getDutyShiftsForDate(date: Date, duty: WeeklyDuty = getSavedWeeklyDuty()): DutyShift[] {
+export function getDutyShiftsForDate(
+  date: Date,
+  duty: WeeklyDuty = getSavedWeeklyDuty(),
+  doctorsList?: any[]
+): DutyShift[] {
   const dayOfWeek = date.getDay() // 0 to 6
   const list: DutyShift[] = []
+  const doctorsToUse = doctorsList || initialDoctors
   
-  initialDoctors.forEach((doc) => {
-    const docDuty = duty[doc.id]?.[dayOfWeek]
+  doctorsToUse.forEach((doc) => {
+    const docId = doc.id || doc._id || doc.doctorId
+    const docDuty = duty[docId]?.[dayOfWeek]
     if (docDuty && docDuty.shift !== "off") {
       list.push({
-        doctorId: doc.id,
+        doctorId: docId,
         doctorName: doc.name,
         shift: docDuty.shift,
         room: docDuty.room
@@ -118,20 +78,24 @@ export function checkDoctorDuty(
   doctorName: string,
   dateStr: string, // YYYY-MM-DD
   timeStr: string, // HH:MM
-  duty: WeeklyDuty = getSavedWeeklyDuty()
+  duty: WeeklyDuty = getSavedWeeklyDuty(),
+  doctorsList?: any[]
 ): { hasDuty: boolean; message?: string } {
+  const doctorsToUse = doctorsList || initialDoctors
+  
   // Tìm doctorId tương ứng
-  const doctor = initialDoctors.find(
+  const doctor = doctorsToUse.find(
     (d) => d.name.toLowerCase().includes(doctorName.toLowerCase()) || 
            doctorName.toLowerCase().includes(d.name.toLowerCase())
   )
   if (!doctor) return { hasDuty: true } // Không tìm thấy bác sĩ thì bỏ qua cảnh báo
   
+  const docId = doctor.id || doctor._id || doctor.doctorId
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return { hasDuty: true }
   
   const dayOfWeek = date.getDay()
-  const docDuty = duty[doctor.id]?.[dayOfWeek]
+  const docDuty = duty[docId]?.[dayOfWeek]
   
   if (!docDuty || docDuty.shift === "off") {
     return { 
@@ -145,7 +109,7 @@ export function checkDoctorDuty(
   
   // Ca Sáng: 8h-12h (480 - 720 phút)
   // Ca Chiều: 13h30-17h30 (810 - 1050 phút)
-  // Cả ngày: 8h-17h30 (480 - 1050 phút)
+  // Ca Tối: 18h-22h (1080 - 1320 phút)
   if (docDuty.shift === "morning") {
     if (timeMinutes < 480 || timeMinutes > 720) {
       return { 
@@ -160,11 +124,11 @@ export function checkDoctorDuty(
         message: `Bác sĩ ${doctor.name} chỉ trực Ca Chiều (13:30 - 17:30) hôm nay.` 
       }
     }
-  } else if (docDuty.shift === "full_day") {
-    if (timeMinutes < 480 || timeMinutes > 1050) {
+  } else if (docDuty.shift === "evening") {
+    if (timeMinutes < 1080 || timeMinutes > 1320) {
       return { 
         hasDuty: false, 
-        message: `Bác sĩ ${doctor.name} chỉ trực khung giờ Hành chính (08:00 - 17:30) hôm nay.` 
+        message: `Bác sĩ ${doctor.name} chỉ trực Ca Tối (18:00 - 22:00) hôm nay.` 
       }
     }
   }

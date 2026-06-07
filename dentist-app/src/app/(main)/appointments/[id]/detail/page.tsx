@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import { getAppointmentDetail, updateAppointmentDetail } from "@/lib/appointments-data"
 import { fmtCurrency } from "@/lib/date-utils"
+import { AppointmentDetail } from "@/lib/appointments-data"
 import { StatusBadge } from "@/components/status-badge"
 import { RescheduleDialog } from "./_components/reschedule-dialog"
 import { AddServiceDialog } from "./_components/add-service-dialog"
 import { PaymentDialog } from "./_components/payment-dialog"
 import { ClinicalExamForm } from "./_components/clinical-exam-form"
+import { toast } from "sonner"
 import {
   ChevronRight,
   Clock,
@@ -46,9 +47,9 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function AppointmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const initialApt = getAppointmentDetail(id)
   
-  const [apt, setApt] = useState(initialApt)
+  const [apt, setApt] = useState<AppointmentDetail | null>(null)
+  const [loading, setLoading] = useState(true)
 
   // Modals visibility states
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
@@ -74,6 +75,23 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   const [examPrescription, setExamPrescription] = useState("")
   const [examNote, setExamNote] = useState("")
 
+  const fetchAppointment = async () => {
+    try {
+      const res = await fetch(`/api/appointments/${id}`)
+      if (!res.ok) throw new Error("Không thể tải thông tin ca khám.")
+      const data = await res.json()
+      setApt(data)
+    } catch (error: any) {
+      toast.error(error.message || "Đã xảy ra lỗi.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAppointment()
+  }, [id])
+
   // Sync clinical exam inputs when apt changes
   useEffect(() => {
     if (apt) {
@@ -84,40 +102,58 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
     }
   }, [apt])
 
-  if (!apt) {
-    return (
-      <div className="p-8 text-center text-on-surface-variant">
-        Không tìm thấy lịch khám #{id}
-      </div>
-    )
+  const updateAppointment = async (updates: any, silentSuccess = false) => {
+    try {
+      const res = await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Cập nhật lịch khám thất bại.")
+      }
+      
+      const detailRes = await fetch(`/api/appointments/${id}`)
+      if (!detailRes.ok) throw new Error("Không thể tải thông tin ca khám.")
+      const data = await detailRes.json()
+      setApt(data)
+      
+      if (!silentSuccess) {
+        toast.success("Cập nhật lịch khám thành công.")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Đã xảy ra lỗi.")
+    }
   }
 
-  const handleReschedule = (date: Date | undefined, startTime: string, endTime: string, room: string) => {
+  const handleReschedule = async (date: Date | undefined, startTime: string, endTime: string, room: string) => {
+    if (!apt) return
     const nextDate = date ? format(date, "yyyy-MM-dd") : apt.date
-    updateAppointmentDetail(apt.id, {
+    await updateAppointment({
       date: nextDate,
       start: startTime,
       end: endTime,
       room: room,
       status: "rescheduled"
     })
-    setApt(getAppointmentDetail(apt.id))
     setIsRescheduleOpen(false)
   }
 
-  const handleAddService = (item: { name: string; qty: number; unit: string; price: number; type: "vip" | "thuong" | "khuyenmai" }) => {
+  const handleAddService = async (item: { name: string; qty: number; unit: string; price: number; type: "vip" | "thuong" | "khuyenmai" }) => {
+    if (!apt) return
     const updatedItems = [...apt.items, item]
     const updatedPrice = apt.price + (item.price * item.qty)
     
-    updateAppointmentDetail(apt.id, {
+    await updateAppointment({
       items: updatedItems,
       price: updatedPrice
     })
-    setApt(getAppointmentDetail(apt.id))
     setIsAddServiceOpen(false)
   }
 
-  const handleConfirmPayment = (amount: number, method: string) => {
+  const handleConfirmPayment = async (amount: number, method: string) => {
+    if (!apt) return
     if (amount <= 0) return
     const newPaid = apt.paid + amount
     const newPayment = {
@@ -127,31 +163,50 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
     }
     const updatedPayments = [...(apt.payments || []), newPayment]
 
-    updateAppointmentDetail(apt.id, {
+    await updateAppointment({
       paid: newPaid,
       payments: updatedPayments
     })
-    setApt(getAppointmentDetail(apt.id))
     setIsPaymentOpen(false)
   }
 
   const handleCompleteExamClick = () => {
+    if (!apt) return
     setConfirmAction({
       isOpen: true,
       title: "Lưu hồ sơ & Hoàn tất khám",
       description: "Xác nhận lưu toàn bộ hồ sơ lâm sàng và hoàn tất ca khám? Ca khám sẽ chuyển sang trạng thái Hoàn thành (chờ thanh toán).",
-      action: () => {
-        updateAppointmentDetail(apt.id, {
+      action: async () => {
+        await updateAppointment({
           status: "completed",
           symptoms: examSymptoms,
           diagnosis: examDiagnosis,
           prescription: examPrescription,
           note: examNote
         })
-        setApt(getAppointmentDetail(apt.id))
         setConfirmAction(prev => ({ ...prev, isOpen: false }))
       }
     })
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Topbar searchPlaceholder="Tìm kiếm..." />
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col items-center justify-center min-h-[400px]">
+          <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />
+          <p className="font-medium text-on-surface-variant">Đang tải thông tin ca khám...</p>
+        </div>
+      </>
+    )
+  }
+
+  if (!apt) {
+    return (
+      <div className="p-8 text-center text-on-surface-variant">
+        Không tìm thấy lịch khám #{id}
+      </div>
+    )
   }
 
   const total = apt.price - apt.discount
@@ -182,16 +237,34 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Tiếp đón: Scheduled / Confirmed / Rescheduled */}
-              {(apt.status === "scheduled" || apt.status === "confirmed" || apt.status === "rescheduled") && (
+              {/* Xác nhận: Scheduled / Rescheduled */}
+              {(apt.status === "scheduled" || apt.status === "rescheduled") && (
+                <Button 
+                  onClick={() => setConfirmAction({
+                    isOpen: true,
+                    title: "Xác nhận lịch hẹn",
+                    description: "Xác nhận lịch hẹn khám của bệnh nhân?",
+                    action: async () => {
+                      await updateAppointment({ status: "confirmed" })
+                      setConfirmAction(prev => ({ ...prev, isOpen: false }))
+                    }
+                  })}
+                  className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5 text-sm font-semibold border-transparent"
+                >
+                  <CheckCircle2 className="size-4" />
+                  Xác nhận lịch
+                </Button>
+              )}
+
+              {/* Tiếp đón: Confirmed */}
+              {apt.status === "confirmed" && (
                 <Button 
                   onClick={() => setConfirmAction({
                     isOpen: true,
                     title: "Tiếp đón bệnh nhân",
                     description: "Xác nhận bệnh nhân đã có mặt tại phòng khám và sẵn sàng chờ khám?",
-                    action: () => {
-                      updateAppointmentDetail(apt.id, { status: "checked_in" })
-                      setApt(getAppointmentDetail(apt.id))
+                    action: async () => {
+                      await updateAppointment({ status: "checked_in" })
                       setConfirmAction(prev => ({ ...prev, isOpen: false }))
                     }
                   })}
@@ -209,9 +282,8 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
                     isOpen: true,
                     title: "Bắt đầu khám bệnh",
                     description: "Bắt đầu tiến hành khám và cập nhật hồ sơ lâm sàng cho bệnh nhân?",
-                    action: () => {
-                      updateAppointmentDetail(apt.id, { status: "examining" })
-                      setApt(getAppointmentDetail(apt.id))
+                    action: async () => {
+                      await updateAppointment({ status: "examining" })
                       setConfirmAction(prev => ({ ...prev, isOpen: false }))
                     }
                   })}
@@ -251,9 +323,8 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
                   isOpen: true,
                   title: "Hủy lịch khám",
                   description: "Bạn có chắc chắn muốn hủy lịch khám này? Hành động này không thể hoàn tác.",
-                  action: () => {
-                    updateAppointmentDetail(apt.id, { status: "cancelled" })
-                    setApt(getAppointmentDetail(apt.id))
+                  action: async () => {
+                    await updateAppointment({ status: "cancelled" })
                     setConfirmAction(prev => ({ ...prev, isOpen: false }))
                   },
                   variant: "destructive"

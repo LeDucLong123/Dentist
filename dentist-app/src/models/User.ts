@@ -46,6 +46,12 @@ const UserSchema = new mongoose.Schema(
     badge: {
       type: String,
     },
+    dob: {
+      type: String,
+    },
+    address: {
+      type: String,
+    },
   },
   {
     timestamps: true,

@@ -35,7 +35,9 @@ interface DayViewProps {
   setSelectedDate: (d: Date) => void
   appointments: typeof APPOINTMENTS
   dayAppointments: typeof APPOINTMENTS
-  handleCheckIn?: (id: string) => void
+  handleCheckIn?: (id: string, status: string) => void
+  weeklyDuty?: any
+  doctors?: any[]
 }
 
 export function DayView({
@@ -43,7 +45,9 @@ export function DayView({
   setSelectedDate,
   appointments,
   dayAppointments,
-  handleCheckIn
+  handleCheckIn,
+  weeklyDuty,
+  doctors
 }: DayViewProps) {
   const today = new Date()
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -53,8 +57,8 @@ export function DayView({
   })
 
   const dayDutyShifts = useMemo(() => {
-    return getDutyShiftsForDate(selectedDate)
-  }, [selectedDate])
+    return getDutyShiftsForDate(selectedDate, weeklyDuty, doctors)
+  }, [selectedDate, weeklyDuty, doctors])
 
   // Grouped for calendar dot indicators
   const monthAptMap = useMemo(() => {
@@ -152,18 +156,18 @@ export function DayView({
               </div>
             </div>
 
-            {/* Cả Ngày */}
-            <div className="bg-slate-50/50 p-4 rounded-xl border border-indigo-100/70 shadow-sm space-y-2">
-              <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-indigo-100/30 pb-1.5">
-                <span className="size-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                Cả Ngày (08:00 - 17:30)
+            {/* Ca Tối */}
+            <div className="bg-slate-50/50 p-4 rounded-xl border border-amber-100/70 shadow-sm space-y-2">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-amber-100/30 pb-1.5">
+                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Ca Tối (18:00 - 22:00)
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {dayDutyShifts.filter(s => s.shift === "full_day").length === 0 ? (
+                {dayDutyShifts.filter(s => s.shift === "evening").length === 0 ? (
                   <span className="text-[10px] text-slate-400 italic">Trống</span>
                 ) : (
-                  dayDutyShifts.filter(s => s.shift === "full_day").map(s => (
-                    <span key={s.doctorId} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-slate-700 text-xs font-bold shadow-sm">
+                  dayDutyShifts.filter(s => s.shift === "evening").map(s => (
+                    <span key={s.doctorId} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-100 text-slate-700 text-xs font-bold shadow-sm">
                       {s.doctorName}
                     </span>
                   ))
@@ -318,8 +322,8 @@ export function DayView({
         {(() => {
           const layoutedApts = layoutDayApts(dayAppointments)
           const maxCols = Math.max(1, ...layoutedApts.map(a => a.totalCols))
-          const CARD_W = 200   // px, card width
-          const CARD_GAP = 16  // px, column gap
+          const CARD_W = 200   // px, fixed card width
+          const CARD_GAP = 8   // px, gap between overlapping cards
           const AREA_PAD = 16  // px, left padding
           
           return (
@@ -435,9 +439,21 @@ export function DayView({
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          handleCheckIn?.(apt.id)
+                          handleCheckIn?.(apt.id, "confirmed")
                         }}
-                        className="w-full flex items-center justify-center gap-1 py-1 rounded bg-primary text-on-primary text-[9px] font-bold shadow-sm shadow-primary/20 hover:brightness-105 transition-all mt-auto"
+                        className="w-full flex items-center justify-center gap-1 py-1 rounded bg-blue-600 text-white text-[9px] font-bold shadow-sm shadow-blue-500/20 hover:brightness-105 transition-all mt-auto"
+                      >
+                        <CheckCircle2 className="size-2.5" />
+                        Xác nhận nhanh
+                      </button>
+                    ) : apt.status === "confirmed" && toDateKey(selectedDate) === toDateKey(today) && durMin >= 60 ? (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleCheckIn?.(apt.id, "checked_in")
+                        }}
+                        className="w-full flex items-center justify-center gap-1 py-1 rounded bg-purple-600 text-white text-[9px] font-bold shadow-sm shadow-purple-500/20 hover:brightness-105 transition-all mt-auto"
                       >
                         <CheckCircle2 className="size-2.5" />
                         Tiếp đón nhanh

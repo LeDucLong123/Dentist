@@ -54,6 +54,8 @@ export async function GET(req: Request) {
         avatar: "",
         lastActive,
         joinDate,
+        dob: user.dob || "",
+        address: user.address || "",
       }
     })
 
@@ -80,7 +82,7 @@ export async function POST(req: Request) {
 
     await dbConnect()
     const body = await req.json()
-    const { name, email, phone, role, specialty, password } = body
+    const { name, email, phone, role, specialty, password, dob, address } = body
 
     if (!name || !email || !password) {
       return NextResponse.json({ message: "Vui lòng điền đầy đủ họ tên, email và mật khẩu." }, { status: 400 })
@@ -101,6 +103,8 @@ export async function POST(req: Request) {
       specialty: dbRole === "doctor" ? (specialty || "cử nhân") : undefined,
       password,
       status: "active",
+      dob,
+      address,
     })
 
     return NextResponse.json({

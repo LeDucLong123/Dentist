@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -9,9 +10,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
-import { Tag, Plus, Search, Trash2 } from "lucide-react"
+import { Tag, Plus, Search, Trash2, Loader2 } from "lucide-react"
 import { SearchCombobox } from "@/components/search-combobox"
-import { SERVICES } from "@/lib/appointments-data"
 import { fmtCurrency } from "@/lib/date-utils"
 
 interface ServiceItem {
@@ -30,12 +30,105 @@ interface ServicesTableProps {
   setDiscount: (discount: number) => void
 }
 
+// Map priceType from DB to internal type key
+const PRICE_TYPE_MAP: Record<string, string> = {
+  "Thường": "thuong",
+  "VIP": "vip",
+  "Khuyến mãi": "khuyenmai",
+}
+
+const PRICE_TYPE_REVERSE: Record<string, string> = {
+  "thuong": "Thường",
+  "vip": "VIP",
+  "khuyenmai": "Khuyến mãi",
+}
+
+interface DbService {
+  id: string
+  name: string
+  category: string
+  status: string
+}
+
+interface DbPricing {
+  id: string
+  serviceId: string
+  serviceName: string
+  priceType: string
+  standardPrice: number
+  validFrom: string
+  validTo: string | null
+  status: string
+}
+
 export function ServicesTable({
   items,
   setItems,
   discount,
   setDiscount
 }: ServicesTableProps) {
+  const [dbServices, setDbServices] = useState<DbService[]>([])
+  const [dbPricing, setDbPricing] = useState<DbPricing[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch real services and pricing from database
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [svcRes, priceRes] = await Promise.all([
+          fetch("/api/services"),
+          fetch("/api/pricing"),
+        ])
+        if (svcRes.ok) {
+          const services = await svcRes.json()
+          setDbServices(services.filter((s: DbService) => s.status === "active"))
+        }
+        if (priceRes.ok) {
+          const pricing = await priceRes.json()
+          // Only use applied pricing entries
+          setDbPricing(pricing.filter((p: DbPricing) => p.status === "applied"))
+        }
+      } catch (err) {
+        console.error("Lỗi tải dịch vụ/bảng giá:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  // Build a price lookup: serviceId -> { thuong: price, vip: price, khuyenmai: price }
+  const priceLookup = useMemo(() => {
+    const lookup: Record<string, Record<string, number>> = {}
+    
+    for (const p of dbPricing) {
+      const typeKey = PRICE_TYPE_MAP[p.priceType] || p.priceType.toLowerCase()
+      if (!lookup[p.serviceId]) {
+        lookup[p.serviceId] = {}
+      }
+      // If multiple pricing entries exist for same service+type, use the latest (highest pricingId)
+      // Since dbPricing is already sorted by pricingId desc, the first one wins
+      if (lookup[p.serviceId][typeKey] === undefined) {
+        lookup[p.serviceId][typeKey] = p.standardPrice
+      }
+    }
+    return lookup
+  }, [dbPricing])
+
+  // Map services to combobox items
+  const serviceComboItems = useMemo(() => {
+    return dbServices.map(s => ({
+      id: s.id,
+      name: s.name,
+      sub: s.category,
+    }))
+  }, [dbServices])
+
+  // Helper: get price for a service by type
+  const getServicePrice = (serviceId: string, type: string): number => {
+    return priceLookup[serviceId]?.[type] ?? 0
+  }
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const finalPrice = Math.max(0, totalPrice - discount)
@@ -65,6 +158,7 @@ export function ServicesTable({
         <div className="flex items-center gap-2">
           <Tag className="size-4 text-primary" />
           <h2 className="font-bold text-sm text-on-surface">Dịch vụ & Chi phí</h2>
+          {loading && <Loader2 className="size-3.5 text-primary/50 animate-spin" />}
         </div>
         <Button 
           type="button"
@@ -96,90 +190,109 @@ export function ServicesTable({
                   Chưa có dịch vụ nào được thêm. Nhấn "Thêm dịch vụ" để bắt đầu.
                 </td>
               </tr>
-            ) : items.map((item) => (
-              <tr key={item.id} className="group">
-                <td className="py-2.5 pr-4">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <SearchCombobox
-                        items={SERVICES.map(s => ({ id: s.id, name: s.name }))}
-                        value={item.name ? { id: item.id.toString(), name: item.name } : null}
-                        onSelect={(selected) => {
-                          if (selected) {
-                            const svc = SERVICES.find(s => s.id === selected.id)
-                            if (svc) {
-                              const t = item.type || "thuong"
-                              updateItemFields(item.id, {
-                                name: svc.name,
-                                type: t,
-                                qty: 1,
-                                price: svc.price[t as keyof typeof svc.price]
-                              })
+            ) : items.map((item) => {
+              // Find the matching DB service for this item
+              const matchedSvc = dbServices.find(s => s.name === item.name)
+              const svcId = matchedSvc?.id
+
+              return (
+                <tr key={item.id} className="group">
+                  <td className="py-2.5 pr-4">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <SearchCombobox
+                          items={serviceComboItems}
+                          value={item.name ? { id: svcId || item.id.toString(), name: item.name } : null}
+                          onSelect={(selected) => {
+                            if (selected) {
+                              const svc = dbServices.find(s => s.id === selected.id)
+                              if (svc) {
+                                const t = item.type || "thuong"
+                                const price = getServicePrice(svc.id, t)
+                                updateItemFields(item.id, {
+                                  name: svc.name,
+                                  type: t,
+                                  qty: 1,
+                                  price,
+                                })
+                              }
+                            } else {
+                              updateItemFields(item.id, { name: "", price: 0, qty: 0 })
                             }
-                          } else {
-                            updateItemFields(item.id, { name: "", price: 0, qty: 0 })
-                          }
-                        }}
-                        placeholder="Tìm dịch vụ..."
-                        icon={Search}
-                        containerClassName="h-9 text-xs rounded-lg"
-                        iconClassName="left-3 size-3.5"
-                        inputClassName="pl-9 pr-8"
-                        renderItem={(s) => (
-                          <div className="flex items-center w-full">
-                            <span className="font-medium text-on-surface truncate">{s.name}</span>
-                          </div>
-                        )}
-                      />
+                          }}
+                          placeholder="Chọn dịch vụ"
+                          icon={Search}
+                          containerClassName="h-9 text-xs rounded-lg"
+                          iconClassName="left-3 size-3.5"
+                          inputClassName="pl-9 pr-8"
+                          renderItem={(s) => (
+                            <div className="flex items-center justify-between w-full gap-2">
+                              <span className="font-medium text-on-surface truncate">{s.name}</span>
+                              {s.sub && (
+                                <span className="text-[10px] text-on-surface-variant/50 shrink-0">{s.sub}</span>
+                              )}
+                            </div>
+                          )}
+                        />
+                      </div>
+                      {(() => {
+                        const hasThuong = svcId ? getServicePrice(svcId, "thuong") > 0 : true
+                        const hasVip = svcId ? getServicePrice(svcId, "vip") > 0 : true
+                        const hasKhuyenmai = svcId ? getServicePrice(svcId, "khuyenmai") > 0 : true
+
+                        return (
+                          <Select 
+                            value={item.type} 
+                            onValueChange={v => {
+                              if (!v) return
+                              if (svcId) {
+                                const price = getServicePrice(svcId, v)
+                                updateItemFields(item.id, { type: v as any, price })
+                              } else {
+                                updateItem(item.id, "type", v)
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 w-[110px] text-[10px] font-bold uppercase tracking-wider bg-slate-50 border-transparent focus:ring-primary/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="thuong" disabled={!hasThuong}>Thường</SelectItem>
+                              <SelectItem value="vip" disabled={!hasVip}>VIP</SelectItem>
+                              <SelectItem value="khuyenmai" disabled={!hasKhuyenmai}>Khuyến mãi</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )
+                      })()}
                     </div>
-                    <Select 
-                      value={item.type} 
-                      onValueChange={v => {
-                        const svc = SERVICES.find(s => s.name === item.name)
-                        if (svc) {
-                          updateItemFields(item.id, { type: v as any, price: svc.price[v as keyof typeof svc.price] })
-                        } else {
-                          updateItem(item.id, "type", v)
-                        }
-                      }}
+                  </td>
+                  <td className="py-2.5 pl-4">
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      value={item.qty || ""} 
+                      onChange={e => updateItem(item.id, "qty", parseInt(e.target.value) || 0)} 
+                      className="w-14 h-9 text-xs font-mono text-center bg-slate-50 border-transparent focus-visible:ring-primary/20"
+                    />
+                  </td>
+                  <td className="py-2.5 pl-4 text-right text-xs font-mono font-medium text-on-surface-variant whitespace-nowrap">
+                    {item.price > 0 ? fmtCurrency(item.price) : "—"}
+                  </td>
+                  <td className="py-2.5 pl-4 text-right text-xs font-bold text-on-surface whitespace-nowrap">
+                    {fmtCurrency(item.price * item.qty)}
+                  </td>
+                  <td className="py-2.5 pl-2 text-right">
+                    <button 
+                      type="button"
+                      onClick={() => removeItem(item.id)} 
+                      className="p-2 text-on-surface-variant/30 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                     >
-                      <SelectTrigger className="h-9 w-[110px] text-[10px] font-bold uppercase tracking-wider bg-slate-50 border-transparent focus:ring-primary/20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="thuong">Thường</SelectItem>
-                        <SelectItem value="vip">VIP</SelectItem>
-                        <SelectItem value="khuyenmai">Khuyến mãi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </td>
-                <td className="py-2.5 pl-4">
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    value={item.qty || ""} 
-                    onChange={e => updateItem(item.id, "qty", parseInt(e.target.value) || 0)} 
-                    className="w-14 h-9 text-xs font-mono text-center bg-slate-50 border-transparent focus-visible:ring-primary/20"
-                  />
-                </td>
-                <td className="py-2.5 pl-4 text-right text-xs font-mono font-medium text-on-surface-variant whitespace-nowrap">
-                  {item.price > 0 ? fmtCurrency(item.price) : "—"}
-                </td>
-                <td className="py-2.5 pl-4 text-right text-xs font-bold text-on-surface whitespace-nowrap">
-                  {fmtCurrency(item.price * item.qty)}
-                </td>
-                <td className="py-2.5 pl-2 text-right">
-                  <button 
-                    type="button"
-                    onClick={() => removeItem(item.id)} 
-                    className="p-2 text-on-surface-variant/30 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

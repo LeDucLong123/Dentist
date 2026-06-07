@@ -20,23 +20,28 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Topbar } from "@/components/topbar"
 import { cn } from "@/lib/utils"
 
+import { useEffect } from "react"
 import { 
-  APPOINTMENTS, 
-  DOCTORS, 
-  getAppointmentDetail 
+  DOCTORS 
 } from "@/lib/appointments-data"
 import { toDateKey } from "@/lib/date-utils"
+import { toast } from "sonner"
 
 import { DayView } from "./_components/day-view"
 import { MonthView } from "./_components/month-view"
 
 export default function AppointmentsPage() {
   const today = new Date()
-  const [appointments, setAppointments] = useState(() => APPOINTMENTS)
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<"day" | "month">("day")
   const [selectedDate, setSelectedDate] = useState(today)
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() })
   
+  // Doctor Shifts & DB Data
+  const [weeklyDuty, setWeeklyDuty] = useState<any>({})
+  const [doctors, setDoctors] = useState<any[]>([])
+
   // Filters
   const [doctorFilter, setDoctorFilter] = useState("Tất cả bác sĩ")
   const [statusFilter, setStatusFilter] = useState("Tất cả")
@@ -44,20 +49,74 @@ export default function AppointmentsPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleCheckIn = (id: string) => {
-    // 1. Mutate global reference
-    const globalApt = APPOINTMENTS.find(a => a.id === id)
-    if (globalApt) {
-      globalApt.status = "checked_in"
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/appointments")
+      if (!res.ok) throw new Error("Không thể tải danh sách lịch khám.")
+      const data = await res.json()
+      setAppointments(data)
+    } catch (error: any) {
+      toast.error(error.message || "Đã xảy ra lỗi khi tải danh sách.")
+    } finally {
+      setLoading(false)
     }
-    // 2. Trigger react re-render
-    setAppointments([...APPOINTMENTS])
   }
 
-  // Doctor list derived from central DOCTORS array
-  const doctorNames = useMemo(() => {
-    return ["Tất cả bác sĩ", ...DOCTORS.map(d => d.name)]
+  const fetchWeeklyDuty = async () => {
+    try {
+      const res = await fetch("/api/duty")
+      if (res.ok) {
+        const data = await res.json()
+        setWeeklyDuty(data)
+      }
+    } catch (error) {
+      console.error("Lỗi tải lịch trực:", error)
+    }
+  }
+
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch("/api/doctors")
+      if (res.ok) {
+        const data = await res.json()
+        setDoctors(data)
+      }
+    } catch (error) {
+      console.error("Lỗi tải danh sách bác sĩ:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchAppointments()
+    fetchWeeklyDuty()
+    fetchDoctors()
   }, [])
+
+  const handleCheckIn = async (id: string, status = "checked_in") => {
+    try {
+      const res = await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error("Không thể cập nhật trạng thái.")
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status } : a))
+      )
+      const successMessage = status === "confirmed" 
+        ? "Đã xác nhận lịch hẹn thành công." 
+        : "Bệnh nhân đã được tiếp đón."
+      toast.success(successMessage)
+    } catch (error: any) {
+      toast.error(error.message || "Đã xảy ra lỗi.")
+    }
+  }
+
+  // Doctor list derived from dynamic doctors state
+  const doctorNames = useMemo(() => {
+    return ["Tất cả bác sĩ", ...doctors.map(d => d.name)]
+  }, [doctors])
 
   // Doctor suggestions for the filter combobox
   const doctorSuggestions = useMemo(() =>
@@ -277,13 +336,20 @@ export default function AppointmentsPage() {
         </div>
 
         {/* ── Main View Panel ── */}
-        {viewMode === "day" ? (
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-outline-variant/10 px-6 py-16 text-center">
+            <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+            <p className="font-medium text-on-surface-variant">Đang tải danh sách lịch khám...</p>
+          </div>
+        ) : viewMode === "day" ? (
           <DayView
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
             appointments={appointments}
             dayAppointments={dayAppointments}
             handleCheckIn={handleCheckIn}
+            weeklyDuty={weeklyDuty}
+            doctors={doctors}
           />
         ) : (
           <MonthView
