@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Topbar } from "@/components/topbar"
-import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
 import { cn } from "@/lib/utils"
 import {
   Users, Stethoscope, CalendarCheck, TrendingUp, TrendingDown,
@@ -12,39 +11,7 @@ import {
   BarChart2,
 } from "lucide-react"
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
-
-const REVENUE_MONTHS = [
-  { month: "T1", value: 42 }, { month: "T2", value: 58 }, { month: "T3", value: 51 },
-  { month: "T4", value: 75 }, { month: "T5", value: 89 }, { month: "T6", value: 66 },
-  { month: "T7", value: 95 }, { month: "T8", value: 82 }, { month: "T9", value: 110 },
-  { month: "T10", value: 98 }, { month: "T11", value: 120 }, { month: "T12", value: 135 },
-]
-const MAX_REV = Math.max(...REVENUE_MONTHS.map(m => m.value))
-
-const TOP_DOCTORS = [
-  { name: "BS. Julian Pierce",   specialty: "Cấy ghép Implant",   patients: 142, rating: 4.9, avatar: "JP" },
-  { name: "BS. Emily Thorne",    specialty: "Chỉnh nha",           patients: 118, rating: 4.8, avatar: "ET" },
-  { name: "BS. Phạm Quốc Dũng", specialty: "Phẫu thuật răng",     patients: 97,  rating: 4.7, avatar: "PD" },
-  { name: "BS. Nguyễn Thị Lan", specialty: "Thẩm mỹ nha khoa",   patients: 85,  rating: 4.6, avatar: "NL" },
-]
-
-const TOP_SERVICES = [
-  { name: "Cấy ghép Implant",    count: 48, pct: 32, color: "bg-primary" },
-  { name: "Chỉnh nha mắc cài",  count: 35, pct: 23, color: "bg-violet-500" },
-  { name: "Bọc răng sứ",        count: 28, pct: 19, color: "bg-emerald-500" },
-  { name: "Tẩy trắng răng",     count: 22, pct: 15, color: "bg-amber-500" },
-  { name: "Nhổ răng khôn",      count: 17, pct: 11, color: "bg-red-400" },
-]
-
-const RECENT_ACTIVITY = [
-  { time: "08:12", desc: "Lịch khám LK001 được xác nhận", type: "success" },
-  { time: "08:45", desc: "Bệnh nhân Trần Thị B yêu cầu đổi lịch", type: "warn" },
-  { time: "09:30", desc: "Hóa đơn INV-0042 thanh toán đủ", type: "success" },
-  { time: "10:15", desc: "Hồ sơ bác sĩ mới được thêm vào hệ thống", type: "info" },
-  { time: "11:00", desc: "Lịch khám LK010 bị hủy bởi bệnh nhân", type: "error" },
-  { time: "13:20", desc: "Bảng giá tháng 6/2026 được kích hoạt", type: "info" },
-]
+// ─── Status Map ──────────────────────────────────────────────────────────────
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   confirmed:   { label: "Đã xác nhận", color: "text-emerald-600 bg-emerald-50",  icon: CheckCircle2 },
@@ -54,10 +21,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Ele
   rescheduled: { label: "Yêu cầu đổi", color: "text-amber-600 bg-amber-50",      icon: ArrowRightLeft },
   completed:   { label: "Hoàn thành",   color: "text-slate-600 bg-slate-100",     icon: BadgeCheck },
   cancelled:   { label: "Đã hủy",       color: "text-red-600 bg-red-50",          icon: XCircle },
-}
-
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n)
 }
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
@@ -97,104 +60,86 @@ function KpiCard({ icon: Icon, label, value, sub, trend, trendUp, gradient }: {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const todayApts = APPOINTMENTS.filter(a => a.date === todayStr)
-  const confirmedToday = todayApts.filter(a => a.status === "confirmed" || a.status === "checked_in" || a.status === "examining").length
-  const pendingToday = todayApts.filter(a => a.status === "scheduled").length
-
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string>("")
   const [now, setNow] = useState(new Date())
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  // Calculate dynamic metrics
-  const mayApts = APPOINTMENTS.filter(a => a.date.startsWith("2026-05"))
-  
-  // 1. Patient count: unique patients in May 2026 + offset 310
-  const uniquePatientsMay = new Set(mayApts.map(a => a.patient)).size
-  const patientCountVal = 310 + uniquePatientsMay
-  
-  // 2. Revenue count: sum of all detail.paid in May + offset 98,200,000
-  const paidMaySum = mayApts.reduce((sum, a) => {
-    const detail = getAppointmentDetail(a.id)
-    return sum + detail.paid
-  }, 0)
-  const monthlyRevVal = 98200000 + paidMaySum
-  const monthlyRevStr = `${(monthlyRevVal / 1000000).toFixed(1)}M`
-  
-  // 3. Completion rate: (completed base 150 + completed count) / (total base 155 + completed count + cancelled count)
-  const completedMayCount = mayApts.filter(a => a.status === "completed").length
-  const cancelledMayCount = mayApts.filter(a => a.status === "cancelled").length
-  const compBase = 150
-  const totalBase = 155
-  const compRateVal = ((compBase + completedMayCount) / (totalBase + completedMayCount + cancelledMayCount)) * 100
-  const compRateStr = `${compRateVal.toFixed(1)}%`
-  const cancelledRateStr = `${((5 + cancelledMayCount) / (totalBase + completedMayCount + cancelledMayCount) * 100).toFixed(1)}%`
-  
-  // 4. Dynamic revenue chart
-  const dynamicRevenueMonths = REVENUE_MONTHS.map((m, idx) => {
-    if (m.month === "T5") {
-      return { ...m, value: Math.round(monthlyRevVal / 1000000) }
-    }
-    return m
-  })
-  const dynamicMaxRev = Math.max(...dynamicRevenueMonths.map(m => m.value))
-  
-  // 5. Dynamic top doctors
-  const docStats = APPOINTMENTS.reduce((acc, a) => {
-    const detail = getAppointmentDetail(a.id)
-    if (!acc[a.doctor]) {
-      acc[a.doctor] = { patients: 0, revenue: 0 }
-    }
-    acc[a.doctor].patients += 1
-    acc[a.doctor].revenue += detail.paid
-    return acc
-  }, {} as Record<string, { patients: number; revenue: number }>)
-  
-  const dynamicDoctors = TOP_DOCTORS.map(d => {
-    const stats = docStats[d.name] || { patients: 0, revenue: 0 }
-    return {
-      ...d,
-      patients: d.patients + stats.patients,
-    }
-  }).sort((a, b) => b.patients - a.patients)
-  
-  // 6. Dynamic top services
-  const serviceCounts: Record<string, number> = {
-    "Cấy ghép Implant": 48,
-    "Chỉnh nha mắc cài": 35,
-    "Bọc răng sứ": 28,
-    "Tẩy trắng răng": 22,
-    "Nhổ răng khôn": 17,
-  }
-  
-  APPOINTMENTS.forEach(a => {
-    if (serviceCounts[a.service] !== undefined) {
-      serviceCounts[a.service] += 1
-    }
-    const detail = getAppointmentDetail(a.id)
-    detail.items.forEach(item => {
-      for (const key in serviceCounts) {
-        if (item.name.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(item.name.toLowerCase())) {
-          serviceCounts[key] += item.qty
-          break
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/dashboard")
+        if (!res.ok) {
+          throw new Error("Lỗi tải thông tin thống kê.")
         }
+        const data = await res.json()
+        setStats(data)
+      } catch (err: any) {
+        setError(err.message || "Có lỗi xảy ra khi lấy dữ liệu thật.")
+      } finally {
+        setLoading(false)
       }
-    })
-  })
-  
-  const totalServicesCount = Object.values(serviceCounts).reduce((s, c) => s + c, 0)
-  const dynamicServices = Object.entries(serviceCounts).map(([name, count]) => {
-    const pct = totalServicesCount > 0 ? Math.round((count / totalServicesCount) * 100) : 0
-    const orig = TOP_SERVICES.find(s => s.name === name)
-    return {
-      name,
-      count,
-      pct,
-      color: orig?.color || "bg-primary"
     }
-  }).sort((a, b) => b.count - a.count)
+    fetchStats()
+  }, [])
+
+  if (loading) {
+    return (
+      <>
+        <Topbar />
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-7 animate-pulse">
+          {/* Title skeleton */}
+          <div className="space-y-2">
+            <div className="h-4 w-32 bg-slate-200 rounded-md" />
+            <div className="h-8 w-48 bg-slate-200 rounded-xl" />
+            <div className="h-4 w-40 bg-slate-200 rounded-md" />
+          </div>
+          {/* KPI skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 bg-slate-200 rounded-2xl" />
+            ))}
+          </div>
+          {/* Main section skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 h-80 bg-slate-200 rounded-2xl" />
+            <div className="h-80 bg-slate-200 rounded-2xl" />
+          </div>
+          {/* Bottom grid skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="h-72 bg-slate-200 rounded-2xl" />
+            <div className="h-72 bg-slate-200 rounded-2xl" />
+            <div className="h-72 bg-slate-200 rounded-2xl" />
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  if (error || !stats) {
+    return (
+      <>
+        <Topbar />
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col items-center justify-center min-h-[400px]">
+          <AlertCircle className="size-12 text-red-500 mb-4" />
+          <p className="text-sm font-bold text-slate-800">{error || "Không thể tải dữ liệu."}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-md shadow-primary/20"
+          >
+            Tải lại trang
+          </button>
+        </div>
+      </>
+    )
+  }
+
+  const maxRev = Math.max(...stats.revenueMonths.map((m: any) => m.value))
 
   return (
     <>
@@ -223,24 +168,40 @@ export default function DashboardPage() {
         {/* ── KPI row ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            icon={CalendarCheck} label="Lịch khám hôm nay" value={`${todayApts.length}`}
-            sub={`${confirmedToday} đã đến/xác nhận · ${pendingToday} chờ`}
-            trend="+12%" trendUp gradient="bg-gradient-to-br from-primary to-blue-400"
+            icon={CalendarCheck}
+            label="Lịch khám hôm nay"
+            value={`${stats.todayCount}`}
+            sub={`${stats.confirmedToday} đã đến/xác nhận · ${stats.pendingToday} chờ`}
+            trend="+12%"
+            trendUp
+            gradient="bg-gradient-to-br from-primary to-blue-400"
           />
           <KpiCard
-            icon={Users} label="Bệnh nhân tháng này" value={`${patientCountVal}`}
-            sub="So với 298 tháng trước"
-            trend="+8.7%" trendUp gradient="bg-gradient-to-br from-violet-500 to-purple-400"
+            icon={Users}
+            label="Bệnh nhân tháng này"
+            value={`${stats.patientCountVal}`}
+            sub="Khám và điều trị tại phòng khám"
+            trend={stats.patientTrend}
+            trendUp={stats.patientTrendUp}
+            gradient="bg-gradient-to-br from-violet-500 to-purple-400"
           />
           <KpiCard
-            icon={DollarSign} label="Doanh thu tháng" value={monthlyRevStr}
-            sub="Mục tiêu: 150M"
-            trend="+5.2%" trendUp gradient="bg-gradient-to-br from-emerald-500 to-teal-400"
+            icon={DollarSign}
+            label="Doanh thu tháng"
+            value={stats.monthlyRevStr}
+            sub="Doanh thu thực nhận"
+            trend={stats.revTrend}
+            trendUp={stats.revTrendUp}
+            gradient="bg-gradient-to-br from-emerald-500 to-teal-400"
           />
           <KpiCard
-            icon={Activity} label="Tỉ lệ hoàn thành" value={compRateStr}
-            sub={`Tỉ lệ hủy: ${cancelledRateStr}`}
-            trend="-0.3%" trendUp={false} gradient="bg-gradient-to-br from-amber-500 to-orange-400"
+            icon={Activity}
+            label="Tỉ lệ hoàn thành"
+            value={stats.compRateStr}
+            sub={`Tỉ lệ hủy: ${stats.cancelledRateStr}`}
+            trend="-0.3%"
+            trendUp={false}
+            gradient="bg-gradient-to-br from-amber-500 to-orange-400"
           />
         </div>
 
@@ -252,16 +213,16 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="font-bold text-sm text-slate-900">Doanh thu theo tháng</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Đơn vị: triệu VND · Năm 2026</p>
+                <p className="text-xs text-slate-500 mt-0.5">Đơn vị: triệu VND · Năm {now.getFullYear()}</p>
               </div>
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                 <TrendingUp className="size-3" /> +18.3% YoY
               </div>
             </div>
             <div className="flex items-end gap-2 h-44">
-              {dynamicRevenueMonths.map((m, i) => {
+              {stats.revenueMonths.map((m: any, i: number) => {
                 const isThisMonth = i === new Date().getMonth()
-                const pct = dynamicMaxRev > 0 ? (m.value / dynamicMaxRev) * 100 : 0
+                const pct = maxRev > 0 ? (m.value / maxRev) * 100 : 0
                 return (
                   <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5 group">
                     <span className="text-[10px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -294,24 +255,28 @@ export default function DashboardPage() {
               <h2 className="font-bold text-sm text-slate-900">Hoạt động gần đây</h2>
               <button className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">Xem tất cả</button>
             </div>
-            <div className="flex-1 space-y-0 divide-y divide-slate-50">
-              {RECENT_ACTIVITY.map((a, i) => {
-                const colors: Record<string, string> = {
-                  success: "bg-emerald-400",
-                  warn: "bg-amber-400",
-                  info: "bg-blue-400",
-                  error: "bg-red-400",
-                }
-                return (
-                  <div key={i} className="flex items-start gap-3 py-3">
-                    <div className={cn("size-2 rounded-full shrink-0 mt-1.5", colors[a.type])} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-700 leading-snug">{a.desc}</p>
+            <div className="flex-1 space-y-0 divide-y divide-slate-50 overflow-y-auto max-h-[176px]">
+              {stats.recentActivity.length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-10">Chưa có hoạt động gần đây</p>
+              ) : (
+                stats.recentActivity.map((a: any, i: number) => {
+                  const colors: Record<string, string> = {
+                    success: "bg-emerald-400",
+                    warn: "bg-amber-400",
+                    info: "bg-blue-400",
+                    error: "bg-red-400",
+                  }
+                  return (
+                    <div key={i} className="flex items-start gap-3 py-3">
+                      <div className={cn("size-2 rounded-full shrink-0 mt-1.5", colors[a.type] || "bg-slate-400")} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-700 leading-snug">{a.desc}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">{a.time}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono shrink-0">{a.time}</span>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
@@ -330,11 +295,11 @@ export default function DashboardPage() {
                 Xem lịch <ChevronRight className="size-3" />
               </Link>
             </div>
-            {todayApts.length === 0 ? (
+            {stats.todayApts.length === 0 ? (
               <p className="text-xs text-slate-400 italic text-center py-8">Không có lịch khám hôm nay</p>
             ) : (
               <div className="space-y-2">
-                {todayApts.slice(0, 5).map((a) => {
+                {stats.todayApts.slice(0, 5).map((a: any) => {
                   const s = STATUS_MAP[a.status] ?? STATUS_MAP.scheduled
                   const Icon = s.icon
                   return (
@@ -354,8 +319,8 @@ export default function DashboardPage() {
                     </Link>
                   )
                 })}
-                {todayApts.length > 5 && (
-                  <p className="text-center text-xs font-semibold text-primary pt-1">+{todayApts.length - 5} thêm</p>
+                {stats.todayApts.length > 5 && (
+                  <p className="text-center text-xs font-semibold text-primary pt-1">+{stats.todayApts.length - 5} thêm</p>
                 )}
               </div>
             )}
@@ -373,7 +338,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-3">
-              {dynamicDoctors.map((d, i) => (
+              {stats.topDoctors.map((d: any, i: number) => (
                 <div key={d.name} className="flex items-center gap-3">
                   <span className="text-[10px] font-bold text-slate-300 w-4 shrink-0">#{i + 1}</span>
                   <div className="size-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-400 flex items-center justify-center shrink-0">
@@ -407,7 +372,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-4">
-              {dynamicServices.map((s) => (
+              {stats.topServices.map((s: any) => (
                 <div key={s.name}>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-semibold text-slate-700 truncate pr-2">{s.name}</p>

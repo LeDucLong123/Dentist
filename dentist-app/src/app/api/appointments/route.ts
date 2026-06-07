@@ -31,6 +31,9 @@ export async function GET(req: Request) {
       start: apt.start,
       end: apt.end,
       status: apt.status,
+      price: apt.price || 0,
+      discount: apt.discount || 0,
+      paid: apt.paid || 0,
     }))
 
     return NextResponse.json(formatted)

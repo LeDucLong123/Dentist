@@ -354,10 +354,13 @@ export function DayView({
               
               {/* Appointments cards */}
               {layoutedApts.map((apt) => {
-                const detail = getAppointmentDetail(apt.id)
-                const total = detail.price - detail.discount
-                const isUnpaid = detail.paid < total && detail.price > 0
-                const remaining = total - detail.paid
+                const aAny = apt as any
+                const price = aAny.price ?? 0
+                const discount = aAny.discount ?? 0
+                const paid = aAny.paid ?? 0
+                const total = price - discount
+                const isUnpaid = paid < total && price > 0
+                const remaining = total - paid
 
                 const startMin = parseMin(apt.start)
                 const endMin = parseMin(apt.end)
