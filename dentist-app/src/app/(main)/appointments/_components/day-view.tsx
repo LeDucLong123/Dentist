@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { 
   ChevronLeft, 
@@ -55,6 +55,17 @@ export function DayView({
     year: selectedDate.getFullYear(), 
     month: selectedDate.getMonth() 
   })
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
+  }, [])
 
   const dayDutyShifts = useMemo(() => {
     return getDutyShiftsForDate(selectedDate, weeklyDuty, doctors)
@@ -437,7 +448,7 @@ export function DayView({
                         <CreditCard className="size-3 text-rose-500 shrink-0" />
                         <span>Còn nợ: {fmtCurrency(remaining)}</span>
                       </div>
-                    ) : apt.status === "scheduled" && toDateKey(selectedDate) === toDateKey(today) && durMin >= 60 ? (
+                    ) : apt.status === "scheduled" && toDateKey(selectedDate) === toDateKey(today) && durMin >= 60 && userRole === "admin" ? (
                       <button
                         onClick={(e) => {
                           e.preventDefault()
@@ -449,7 +460,7 @@ export function DayView({
                         <CheckCircle2 className="size-2.5" />
                         Xác nhận nhanh
                       </button>
-                    ) : apt.status === "confirmed" && toDateKey(selectedDate) === toDateKey(today) && durMin >= 60 ? (
+                    ) : apt.status === "confirmed" && toDateKey(selectedDate) === toDateKey(today) && durMin >= 60 && userRole === "receptionist" ? (
                       <button
                         onClick={(e) => {
                           e.preventDefault()

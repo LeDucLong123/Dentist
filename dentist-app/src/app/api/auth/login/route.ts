@@ -36,10 +36,10 @@ export async function POST(req: Request) {
       )
     }
 
-    // Verify if user is admin
-    if (user.role !== "admin") {
+    // Verify if user is admin, doctor or receptionist
+    if (!["admin", "doctor", "receptionist"].includes(user.role)) {
       return NextResponse.json(
-        { message: "Chỉ quản trị viên (role admin) mới có quyền truy cập hệ thống." },
+        { message: "Tài khoản của bạn không có quyền truy cập hệ thống." },
         { status: 403 }
       )
     }

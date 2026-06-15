@@ -153,7 +153,9 @@ export function getDoctorPayroll(
     netSalary,
     appointments: completedApts.map(apt => ({
       id: apt.appointmentId || apt.id,
-      patient: apt.patient,
+      patient: apt.patientId && typeof apt.patientId === "object" && "name" in apt.patientId
+        ? (apt.patientId as any).name
+        : apt.patient || "Bệnh nhân",
       date: apt.date,
       start: apt.start,
       end: apt.end,

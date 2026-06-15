@@ -38,6 +38,18 @@ export default function EditDoctorPage({ params }: { params: Promise<{ id: strin
   const [specialty, setSpecialty] = useState("")
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        if (parsed.role === "doctor" || parsed.role === "receptionist") {
+          window.location.replace("/appointments")
+        }
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
     const fetchDoctor = async () => {
       try {
         setLoading(true)

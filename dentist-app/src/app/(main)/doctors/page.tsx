@@ -118,6 +118,7 @@ export default function DoctorListPage() {
   const [itemsPerPageInput, setItemsPerPageInput] = useState("3")
   const [sortKey, setSortKey] = useState("Mới nhất")
   const [lockTarget, setLockTarget] = useState<{ id: string; name: string; status: string } | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   const fetchDoctors = async () => {
     try {
@@ -134,6 +135,13 @@ export default function DoctorListPage() {
   }
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
     fetchDoctors()
   }, [])
 
@@ -343,28 +351,32 @@ export default function DoctorListPage() {
                         <History className="size-4" />
                       </Button>
                     </Link>
-                    <Link href={`/doctors/${doctor.id}/edit`}>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl"
-                      >
-                        <Edit2 className="size-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setLockTarget({ id: doctor.id, name: doctor.name, status: doctor.status })}
-                      className={cn(
-                        "rounded-xl",
-                        doctor.status === "active"
-                          ? "text-red-400/70 hover:text-red-600 hover:bg-red-50"
-                          : "text-emerald-500/70 hover:text-emerald-600 hover:bg-emerald-50"
-                      )}
-                    >
-                      {doctor.status === "active" ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
-                    </Button>
+                    {userRole !== "doctor" && userRole !== "receptionist" && (
+                      <>
+                        <Link href={`/doctors/${doctor.id}/edit`}>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl"
+                          >
+                            <Edit2 className="size-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setLockTarget({ id: doctor.id, name: doctor.name, status: doctor.status })}
+                          className={cn(
+                            "rounded-xl",
+                            doctor.status === "active"
+                              ? "text-red-400/70 hover:text-red-600 hover:bg-red-50"
+                              : "text-emerald-500/70 hover:text-emerald-600 hover:bg-emerald-50"
+                          )}
+                        >
+                          {doctor.status === "active" ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

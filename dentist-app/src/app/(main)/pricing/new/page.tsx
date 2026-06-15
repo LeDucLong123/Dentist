@@ -26,6 +26,18 @@ export default function NewPricingPage() {
   const [isForever, setIsForever] = useState(false)
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        if (parsed.role === "doctor" || parsed.role === "receptionist") {
+          window.location.replace("/appointments")
+        }
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
     const fetchServices = async () => {
       try {
         const res = await fetch("/api/services")

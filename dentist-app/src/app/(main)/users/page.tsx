@@ -141,6 +141,7 @@ export default function UserListPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<UserRole>("all")
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortKey, setSortKey] = useState("Mới nhất")
   const [currentPage, setCurrentPage] = useState(1)
@@ -163,6 +164,13 @@ export default function UserListPage() {
   }
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
     fetchUsers()
   }, [])
 
@@ -247,12 +255,14 @@ export default function UserListPage() {
               Điều phối quyền truy cập cho nhân viên phòng khám và bệnh nhân.
             </p>
           </div>
-          <Link href="/users/new">
-            <Button className="bg-primary text-on-primary h-10 px-5 shadow-md shadow-primary/25 hover:shadow-primary/40 hover:brightness-105 transition-all font-semibold gap-2 shrink-0">
-              <Plus className="size-4" />
-              Thêm người dùng
-            </Button>
-          </Link>
+          {userRole !== "doctor" && userRole !== "receptionist" && (
+            <Link href="/users/new">
+              <Button className="bg-primary text-on-primary h-10 px-5 shadow-md shadow-primary/25 hover:shadow-primary/40 hover:brightness-105 transition-all font-semibold gap-2 shrink-0">
+                <Plus className="size-4" />
+                Thêm người dùng
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Stats */}
@@ -435,24 +445,28 @@ export default function UserListPage() {
                         </Button>
                       </Link>
                     )}
-                    <Link href={`/users/${user.id}/edit`}>
-                      <Button variant="ghost" size="icon-sm" className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl">
-                        <Edit2 className="size-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setLockDialog({ open: true, userId: user.id, currentStatus: user.status })}
-                      className={cn(
-                        "rounded-xl",
-                        user.status === "active"
-                          ? "text-red-400/70 hover:text-red-600 hover:bg-red-50"
-                          : "text-emerald-500/70 hover:text-emerald-600 hover:bg-emerald-50"
-                      )}
-                    >
-                      {user.status === "active" ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
-                    </Button>
+                    {userRole !== "doctor" && userRole !== "receptionist" && (
+                      <>
+                        <Link href={`/users/${user.id}/edit`}>
+                          <Button variant="ghost" size="icon-sm" className="text-primary/60 hover:text-primary hover:bg-primary/10 rounded-xl">
+                            <Edit2 className="size-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setLockDialog({ open: true, userId: user.id, currentStatus: user.status })}
+                          className={cn(
+                            "rounded-xl",
+                            user.status === "active"
+                              ? "text-red-400/70 hover:text-red-600 hover:bg-red-50"
+                              : "text-emerald-500/70 hover:text-emerald-600 hover:bg-emerald-50"
+                          )}
+                        >
+                          {user.status === "active" ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

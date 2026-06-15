@@ -13,7 +13,7 @@ export default async function AuthLayout({
   const token = cookieStore.get("token")?.value
   const decoded = token ? verifyToken(token) : null
 
-  if (!decoded || decoded.role !== "admin") {
+  if (!decoded || !["admin", "doctor", "receptionist"].includes(decoded.role)) {
     redirect("/login")
   }
 

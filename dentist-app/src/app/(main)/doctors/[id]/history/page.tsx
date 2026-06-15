@@ -5,10 +5,8 @@ import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
-import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
 import { fmtCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
 import {
   ChevronRight,
   ArrowLeft,
@@ -19,56 +17,49 @@ import {
   Search,
   ExternalLink,
   Award,
+  AlertCircle,
 } from "lucide-react"
 
 export default function DoctorHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [doctor, setDoctor] = useState<any | null>(null)
+  const [appointments, setAppointments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
   useEffect(() => {
-    const fetchDoctor = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/doctors/${id}`)
-        if (!res.ok) throw new Error("Không thể tải thông tin bác sĩ.")
-        const data = await res.json()
-        setDoctor(data)
+        setError("")
+        
+        // 1. Fetch doctor profile
+        const docRes = await fetch(`/api/doctors/${id}`)
+        if (!docRes.ok) throw new Error("Không thể tải thông tin bác sĩ từ cơ sở dữ liệu.")
+        const docData = await docRes.json()
+        setDoctor(docData)
+        
+        // 2. Fetch appointments
+        const aptRes = await fetch("/api/appointments")
+        if (!aptRes.ok) throw new Error("Không thể tải danh sách lịch khám từ cơ sở dữ liệu.")
+        const aptData = await aptRes.json()
+        setAppointments(aptData)
       } catch (err: any) {
-        toast.error(err.message || "Đã xảy ra lỗi khi tải thông tin bác sĩ.")
+        setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu lịch sử.")
       } finally {
         setLoading(false)
       }
     }
-    fetchDoctor()
+    fetchData()
   }, [id])
-
-  // Map demo doctor name to mock appointments
-  const searchName = useMemo(() => {
-    if (!doctor) return ""
-    if (doctor.name.includes("Phạm Thành Nam")) return "BS. Julian Pierce"
-    if (doctor.name.includes("Nguyễn Minh Thư")) return "BS. Emily Thorne"
-    if (doctor.name.includes("Lê Hoàng Vũ")) return "BS. Phạm Quốc Dũng"
-    if (doctor.name.includes("Trần Mai Anh")) return "BS. Nguyễn Thị Lan"
-    if (doctor.name.includes("Đỗ Quang Khải")) return "BS. Julian Pierce"
-    return doctor.name
-  }, [doctor])
 
   // Get appointments conducted by this doctor
   const doctorAppointments = useMemo(() => {
     if (!doctor) return []
-    return APPOINTMENTS.filter((a) => {
-      const isNameMatch = a.doctor.toLowerCase().includes(searchName.toLowerCase()) || 
-                          searchName.toLowerCase().includes(a.doctor.toLowerCase())
-      
-      const detail = getAppointmentDetail(a.id)
-      const isIdMatch = detail.doctorId === doctor.id
-      
-      return isNameMatch || isIdMatch
-    }).map(a => getAppointmentDetail(a.id))
-  }, [doctor, searchName])
+    return appointments.filter((a) => a.doctorId === doctor.id)
+  }, [doctor, appointments])
 
   // Filtered history list
   const filteredAppointments = useMemo(() => {
@@ -95,12 +86,18 @@ export default function DoctorHistoryPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  if (!doctor) {
+  if (error || !doctor) {
     return (
       <>
         <Topbar />
-        <div className="p-8 text-center text-on-surface-variant">
-          Không tìm thấy bác sĩ #{id}
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col items-center justify-center min-h-[350px] space-y-4">
+          <AlertCircle className="size-12 text-red-500" />
+          <p className="text-sm font-bold text-slate-800">{error || `Không tìm thấy bác sĩ #${id}`}</p>
+          <Link href="/doctors">
+            <Button variant="outline" className="rounded-xl border-outline-variant/30 text-xs font-semibold">
+              Quay lại danh sách
+            </Button>
+          </Link>
         </div>
       </>
     )
@@ -116,7 +113,7 @@ export default function DoctorHistoryPage({ params }: { params: Promise<{ id: st
   const numericId = parseInt(doctor.id.slice(-6), 16)
   const gradientIndex = isNaN(numericId) ? 0 : numericId % AVATAR_GRADIENTS.length
   const gradient = AVATAR_GRADIENTS[gradientIndex]
-  const initials = (doctor.name as string).replace(/^(BS\.|ThS\.BS\.|ThS\.|TS\.|GS\.|GS\.TS\.)?\s*/i, "").trim().split(" ").slice(-2).map((p: string) => p[0]).join("").toUpperCase()
+  const initials = (doctor.name as string).replace(/^(BS\.|ThS\.|TS\.|GS\.)?\s*/i, "").trim().split(" ").slice(-2).map((p: string) => p[0]).join("").toUpperCase()
 
   return (
     <>

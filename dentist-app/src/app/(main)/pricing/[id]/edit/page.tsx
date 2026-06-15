@@ -29,6 +29,18 @@ export default function EditPricingPage({ params }: { params: Promise<{ id: stri
   const [isForever, setIsForever] = useState(false)
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        if (parsed.role === "doctor" || parsed.role === "receptionist") {
+          window.location.replace("/appointments")
+        }
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)

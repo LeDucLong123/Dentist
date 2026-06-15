@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
@@ -92,6 +93,7 @@ export default function PayrollPage() {
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [selectedDocPayroll, setSelectedDocPayroll] = useState<any | null>(null)
   const [isPayslipOpen, setIsPayslipOpen] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   
   // Dialog/Modal states
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false)
@@ -124,6 +126,13 @@ export default function PayrollPage() {
   }
 
   useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
     fetchPeriods()
   }, [])
 
@@ -497,25 +506,29 @@ export default function PayrollPage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
-              {/* Create new period */}
-              <Button
-                onClick={handleOpenCreateModal}
-                variant="outline"
-                className="border-outline-variant/30 text-on-surface-variant h-10 px-3 sm:px-3.5 font-bold gap-1.5 rounded-xl hover:bg-slate-50 text-xs flex-1 sm:flex-initial"
-              >
-                <Plus className="size-4 shrink-0" />
-                <span className="truncate">Tạo kỳ lương mới</span>
-              </Button>
+              {userRole !== "doctor" && userRole !== "receptionist" && (
+                <>
+                  {/* Create new period */}
+                  <Button
+                    onClick={handleOpenCreateModal}
+                    variant="outline"
+                    className="border-outline-variant/30 text-on-surface-variant h-10 px-3 sm:px-3.5 font-bold gap-1.5 rounded-xl hover:bg-slate-50 text-xs flex-1 sm:flex-initial"
+                  >
+                    <Plus className="size-4 shrink-0" />
+                    <span className="truncate">Tạo kỳ lương mới</span>
+                  </Button>
 
-              {/* Close period button */}
-              {selectedPeriodDetails?.status === "draft" && (
-                <Button
-                  onClick={() => setIsConfirmCloseOpen(true)}
-                  className="bg-amber-600 text-white h-10 px-3 sm:px-4 shadow-md shadow-amber-600/25 hover:shadow-amber-600/40 font-bold gap-1.5 border-transparent hover:bg-amber-500 text-xs transition-all flex-1 sm:flex-initial"
-                >
-                  <CheckCircle className="size-4 shrink-0" />
-                  <span className="truncate">Chốt kỳ lương</span>
-                </Button>
+                  {/* Close period button */}
+                  {selectedPeriodDetails?.status === "draft" && (
+                    <Button
+                      onClick={() => setIsConfirmCloseOpen(true)}
+                      className="bg-amber-600 text-white h-10 px-3 sm:px-4 shadow-md shadow-amber-600/25 hover:shadow-amber-600/40 font-bold gap-1.5 border-transparent hover:bg-amber-500 text-xs transition-all flex-1 sm:flex-initial"
+                    >
+                      <CheckCircle className="size-4 shrink-0" />
+                      <span className="truncate">Chốt kỳ lương</span>
+                    </Button>
+                  )}
+                </>
               )}
 
               <Button onClick={handleExportAll} className="bg-primary text-white h-10 px-3 sm:px-4 shadow-md shadow-primary/25 hover:shadow-primary/40 font-bold gap-1.5 border-transparent text-xs flex-1 sm:flex-initial">
@@ -581,80 +594,85 @@ export default function PayrollPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
           
           {/* Config column (LEFT) */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-3 sm:p-5 space-y-3 sm:space-y-4 relative overflow-hidden">
-              {selectedPeriodDetails?.status === "closed" && (
-                <div className="absolute top-0 right-0 bg-emerald-500 text-white px-2 py-0.5 rounded-bl-lg text-[9px] font-bold flex items-center gap-1 shadow-sm">
-                  <Lock className="size-2.5" /> ĐÃ KHÓA
-                </div>
-              )}
-              
-              <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-3">
-                <Settings className="size-4 text-violet-500" />
-                <h2 className="font-extrabold text-sm text-slate-900">Cấu hình Đơn giá & Hệ số</h2>
-              </div>
-
-              {/* Hourly rate */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đơn giá một giờ (VND)</label>
-                <Input
-                  type="text"
-                  value={hourlyRateStr}
-                  disabled={selectedPeriodDetails?.status === "closed"}
-                  onChange={(e) => handleHourlyRateInputChange(e.target.value)}
-                  onBlur={handleHourlyRateBlur}
-                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Weekend Coefficient */}
-              <div className="flex flex-col gap-1.5 pt-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hệ số ca cuối tuần (T7/CN)</label>
-                <Input
-                  type="text"
-                  value={weekendCoefStr}
-                  disabled={selectedPeriodDetails?.status === "closed"}
-                  onChange={(e) => handleWeekendCoefInputChange(e.target.value)}
-                  onBlur={handleWeekendCoefBlur}
-                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Night Coefficient */}
-              <div className="flex flex-col gap-1.5 pt-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hệ số ca tối (sau 18h)</label>
-                <Input
-                  type="text"
-                  value={nightCoefStr}
-                  disabled={selectedPeriodDetails?.status === "closed"}
-                  onChange={(e) => handleNightCoefInputChange(e.target.value)}
-                  onBlur={handleNightCoefBlur}
-                  className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Coefficients */}
-              <div className="space-y-3 pt-2 border-t border-outline-variant/5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Hệ số Học hàm/Học vị</label>
-                {Object.entries(config.coefDegree).map(([degree, val]) => (
-                  <div key={degree} className="flex items-center justify-between gap-3 bg-slate-50/50 p-2 rounded-xl">
-                    <span className="text-xs text-slate-600 font-semibold">{degree}</span>
-                    <input
-                      type="text"
-                      value={coefDegreeStr[degree] ?? val.toString()}
-                      disabled={selectedPeriodDetails?.status === "closed"}
-                      onChange={(e) => handleDegreeCoefInputChange(degree, e.target.value)}
-                      onBlur={() => handleDegreeCoefBlur(degree)}
-                      className="w-16 h-8 text-center rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
+          {userRole !== "doctor" && userRole !== "receptionist" && (
+            <div className="lg:col-span-1 space-y-4">
+              <div className="bg-white rounded-2xl border border-outline-variant/10 shadow-sm p-3 sm:p-5 space-y-3 sm:space-y-4 relative overflow-hidden">
+                {selectedPeriodDetails?.status === "closed" && (
+                  <div className="absolute top-0 right-0 bg-emerald-500 text-white px-2 py-0.5 rounded-bl-lg text-[9px] font-bold flex items-center gap-1 shadow-sm">
+                    <Lock className="size-2.5" /> ĐÃ KHÓA
                   </div>
-                ))}
+                )}
+                
+                <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-3">
+                  <Settings className="size-4 text-violet-500" />
+                  <h2 className="font-extrabold text-sm text-slate-900">Cấu hình Đơn giá & Hệ số</h2>
+                </div>
+
+                {/* Hourly rate */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đơn giá một giờ (VND)</label>
+                  <Input
+                    type="text"
+                    value={hourlyRateStr}
+                    disabled={selectedPeriodDetails?.status === "closed"}
+                    onChange={(e) => handleHourlyRateInputChange(e.target.value)}
+                    onBlur={handleHourlyRateBlur}
+                    className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Weekend Coefficient */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hệ số ca cuối tuần (T7/CN)</label>
+                  <Input
+                    type="text"
+                    value={weekendCoefStr}
+                    disabled={selectedPeriodDetails?.status === "closed"}
+                    onChange={(e) => handleWeekendCoefInputChange(e.target.value)}
+                    onBlur={handleWeekendCoefBlur}
+                    className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Night Coefficient */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hệ số ca tối (sau 18h)</label>
+                  <Input
+                    type="text"
+                    value={nightCoefStr}
+                    disabled={selectedPeriodDetails?.status === "closed"}
+                    onChange={(e) => handleNightCoefInputChange(e.target.value)}
+                    onBlur={handleNightCoefBlur}
+                    className="h-10 rounded-xl bg-slate-50 border-transparent focus-visible:ring-primary/20 font-bold text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Coefficients */}
+                <div className="space-y-3 pt-2 border-t border-outline-variant/5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Hệ số Học hàm/Học vị</label>
+                  {Object.entries(config.coefDegree).map(([degree, val]) => (
+                    <div key={degree} className="flex items-center justify-between gap-3 bg-slate-50/50 p-2 rounded-xl">
+                      <span className="text-xs text-slate-600 font-semibold">{degree}</span>
+                      <input
+                        type="text"
+                        value={coefDegreeStr[degree] ?? val.toString()}
+                        disabled={selectedPeriodDetails?.status === "closed"}
+                        onChange={(e) => handleDegreeCoefInputChange(degree, e.target.value)}
+                        onBlur={() => handleDegreeCoefBlur(degree)}
+                        className="w-16 h-8 text-center rounded-lg border border-outline-variant/20 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Payroll calculation table list (RIGHT) */}
-          <div className="lg:col-span-3 bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col justify-between min-w-0">
+          <div className={cn(
+            "bg-white rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col justify-between min-w-0",
+            (userRole === "doctor" || userRole === "receptionist") ? "lg:col-span-4" : "lg:col-span-3"
+          )}>
             {loadingDetails ? (
               <div className="flex-1 flex flex-col items-center justify-center p-16">
                 <div className="size-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-3" />

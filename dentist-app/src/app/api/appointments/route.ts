@@ -26,6 +26,7 @@ export async function GET(req: Request) {
       patientId: apt.patientId?._id?.toString() || "",
       doctor: apt.doctorId?.name || "Bác sĩ",
       doctorId: apt.doctorId?._id?.toString() || "",
+      doctorSpecialty: apt.doctorId?.specialty || "Nha sĩ",
       service: apt.items && apt.items.length > 0 ? apt.items[0].serviceName : "Khám tổng quát",
       date: apt.date,
       start: apt.start,
@@ -34,6 +35,7 @@ export async function GET(req: Request) {
       price: apt.price || 0,
       discount: apt.discount || 0,
       paid: apt.paid || 0,
+      room: apt.room || "",
     }))
 
     return NextResponse.json(formatted)

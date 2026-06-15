@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -40,6 +40,19 @@ interface FormErrors {
 
 export default function AddUserPage() {
   const router = useRouter()
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        if (parsed.role === "doctor" || parsed.role === "receptionist") {
+          window.location.replace("/appointments")
+        }
+      }
+    } catch {}
+  }, [])
+
   const [form, setForm] = useState<FormState>({
     name: "",
     email: "",

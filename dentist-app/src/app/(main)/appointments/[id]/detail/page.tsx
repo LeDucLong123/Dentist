@@ -50,6 +50,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   
   const [apt, setApt] = useState<AppointmentDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   // Modals visibility states
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
@@ -91,6 +92,16 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   useEffect(() => {
     fetchAppointment()
   }, [id])
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
+  }, [])
 
   // Sync clinical exam inputs when apt changes
   useEffect(() => {
@@ -154,6 +165,10 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
 
   const handleConfirmPayment = async (amount: number, method: string) => {
     if (!apt) return
+    if (userRole !== "receptionist") {
+      toast.error("Chỉ lễ tân mới có quyền thực hiện thanh toán.")
+      return
+    }
     if (amount <= 0) return
     const newPaid = apt.paid + amount
     const newPayment = {
@@ -238,7 +253,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               {/* Xác nhận: Scheduled / Rescheduled */}
-              {(apt.status === "scheduled" || apt.status === "rescheduled") && (
+              {(apt.status === "scheduled" || apt.status === "rescheduled") && userRole === "admin" && (
                 <Button 
                   onClick={() => setConfirmAction({
                     isOpen: true,
@@ -257,7 +272,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
               )}
 
               {/* Tiếp đón: Confirmed */}
-              {apt.status === "confirmed" && (
+              {apt.status === "confirmed" && userRole === "receptionist" && (
                 <Button 
                   onClick={() => setConfirmAction({
                     isOpen: true,
@@ -276,7 +291,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
               )}
 
               {/* Bắt đầu khám: checked_in */}
-              {apt.status === "checked_in" && (
+              {apt.status === "checked_in" && userRole === "doctor" && (
                 <Button 
                   onClick={() => setConfirmAction({
                     isOpen: true,
@@ -295,7 +310,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
               )}
 
               {/* Hoàn tất khám: examining */}
-              {apt.status === "examining" && (
+              {apt.status === "examining" && userRole === "doctor" && (
                 <Button 
                   onClick={handleCompleteExamClick}
                   className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-sm font-semibold border-transparent"
@@ -535,7 +550,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
                     </span>
                     <div className="flex items-center gap-2">
                       <span>{remaining > 0 ? fmtCurrency(remaining) : "✓"}</span>
-                      {apt.status === "completed" && remaining > 0 && (
+                      {apt.status === "completed" && remaining > 0 && userRole === "receptionist" && (
                         <Button 
                           onClick={() => setIsPaymentOpen(true)}
                           size="sm" 

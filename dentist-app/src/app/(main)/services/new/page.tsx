@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Stethoscope, Info, CheckCircle2 } from "lucide-react"
@@ -22,6 +22,18 @@ export default function NewServicePage() {
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        if (parsed.role === "doctor" || parsed.role === "receptionist") {
+          window.location.replace("/appointments")
+        }
+      }
+    } catch {}
+  }, [])
 
   const handleSave = async () => {
     if (!name || !category) {

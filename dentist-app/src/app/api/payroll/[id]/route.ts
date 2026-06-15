@@ -40,7 +40,7 @@ export async function GET(
         degree: d.degree || "BS"
       }))
 
-      const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + id) } })
+      const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + id) } }).populate("patientId")
       items = mappedDocs.map(doc => getDoctorPayroll(doc, id, period.config, appointments))
     }
 
@@ -123,7 +123,7 @@ export async function PATCH(
         degree: d.degree || "BS"
       }))
 
-      const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + id) } })
+      const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + id) } }).populate("patientId")
       const finalItems = mappedDocs.map(doc => getDoctorPayroll(doc, id, period.config, appointments))
 
       const adminUser = await User.findById(decoded.id)

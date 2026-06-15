@@ -30,7 +30,7 @@ export async function GET() {
       }))
 
       const getFrozenItems = async (ym: string) => {
-        const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + ym) } })
+        const appointments = await Appointment.find({ status: "completed", date: { $regex: new RegExp("^" + ym) } }).populate("patientId")
         return mappedDocs.map(doc => getDoctorPayroll(doc, ym, DEFAULT_PAYROLL_CONFIG, appointments))
       }
 

@@ -72,10 +72,30 @@ export function Sidebar() {
   const pathname = usePathname()
   const [mounted, setMounted] = React.useState(false)
   const { collapsed, setCollapsed } = useSidebar()
+  const [userRole, setUserRole] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     setMounted(true)
+    try {
+      const userStr = localStorage.getItem("user")
+      if (userStr) {
+        const parsed = JSON.parse(userStr)
+        setUserRole(parsed.role)
+      }
+    } catch {}
   }, [])
+
+  const filteredNavItems = React.useMemo(() => {
+    const isStaff = userRole === "doctor" || userRole === "receptionist"
+    if (isStaff) {
+      return navItems.filter(item => 
+        item.href !== "/dashboard" && 
+        item.href !== "/services" && 
+        item.href !== "/pricing"
+      )
+    }
+    return navItems
+  }, [userRole])
 
   const isActive = (href: string) => {
     if (!mounted) return false
@@ -114,7 +134,7 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 space-y-1">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const Icon = item.icon
           const active = isActive(item.href)
           return (

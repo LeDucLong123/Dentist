@@ -1,12 +1,10 @@
 "use client"
 
-import { use, useState, useMemo } from "react"
+import { use, useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { Topbar } from "@/components/topbar"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
-import { APPOINTMENTS, getAppointmentDetail } from "@/lib/appointments-data"
-import { initialUsers } from "@/app/(main)/users/page"
 import { fmtCurrency } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -15,45 +13,59 @@ import {
   Mail,
   Phone,
   Calendar,
-  Clock,
   MapPin,
   ClipboardList,
   Search,
   ExternalLink,
+  AlertCircle,
 } from "lucide-react"
 
 export default function UserHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   
-  // Find user details
-  const user = useMemo(() => {
-    return initialUsers.find((u) => u.id === id)
-  }, [id])
+  const [user, setUser] = useState<any>(null)
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
-  // Map demo user name to mock appointments if they don't have matching records
-  const searchName = useMemo(() => {
-    if (!user) return ""
-    if (user.name === "Sarah Jenkins") return "Trần Thị B"
-    if (user.name === "Trần Thị Lan") return "Vũ Thị F"
-    return user.name
-  }, [user])
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true)
+        setError("")
+        
+        // 1. Fetch user profile
+        const userRes = await fetch(`/api/users/${id}`)
+        if (!userRes.ok) {
+          throw new Error("Không thể tải thông tin người dùng từ cơ sở dữ liệu.")
+        }
+        const userData = await userRes.json()
+        setUser(userData)
+        
+        // 2. Fetch appointments
+        const aptRes = await fetch("/api/appointments")
+        if (!aptRes.ok) {
+          throw new Error("Không thể tải danh sách lịch khám từ cơ sở dữ liệu.")
+        }
+        const aptData = await aptRes.json()
+        setAppointments(aptData)
+      } catch (err: any) {
+        setError(err.message || "Đã xảy ra lỗi hệ thống khi nạp dữ liệu.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [id])
 
   // Get appointments for this patient
   const patientAppointments = useMemo(() => {
     if (!user) return []
-    return APPOINTMENTS.filter((a) => {
-      const isNameMatch = a.patient.toLowerCase().includes(searchName.toLowerCase()) || 
-                          searchName.toLowerCase().includes(a.patient.toLowerCase())
-      
-      const detail = getAppointmentDetail(a.id)
-      const isIdMatch = detail.patientId === user.id
-      
-      return isNameMatch || isIdMatch
-    }).map(a => getAppointmentDetail(a.id))
-  }, [user, searchName])
+    return appointments.filter((a) => a.patientId === user.id)
+  }, [user, appointments])
 
   // Filtered history list
   const filteredAppointments = useMemo(() => {
@@ -68,12 +80,32 @@ export default function UserHistoryPage({ params }: { params: Promise<{ id: stri
     })
   }, [patientAppointments, searchQuery, statusFilter])
 
-  if (!user) {
+  if (loading) {
     return (
       <>
         <Topbar />
-        <div className="p-8 text-center text-on-surface-variant">
-          Không tìm thấy người dùng #{id}
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6 animate-pulse">
+          <div className="h-4 w-32 bg-slate-200 rounded" />
+          <div className="h-6 w-48 bg-slate-200 rounded" />
+          <div className="h-32 bg-slate-200 rounded-2xl" />
+          <div className="h-64 bg-slate-200 rounded-2xl" />
+        </div>
+      </>
+    )
+  }
+
+  if (error || !user) {
+    return (
+      <>
+        <Topbar />
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full flex flex-col items-center justify-center min-h-[350px] space-y-4">
+          <AlertCircle className="size-12 text-red-500" />
+          <p className="text-sm font-bold text-slate-800">{error || `Không tìm thấy người dùng #${id}`}</p>
+          <Link href="/users">
+            <Button variant="outline" className="rounded-xl border-outline-variant/30 text-xs font-semibold">
+              Quay lại danh sách
+            </Button>
+          </Link>
         </div>
       </>
     )
@@ -86,8 +118,9 @@ export default function UserHistoryPage({ params }: { params: Promise<{ id: stri
     "from-rose-500 to-pink-600",
     "from-amber-500 to-orange-600",
   ]
-  const gradient = AVATAR_GRADIENTS[parseInt(user.id) % AVATAR_GRADIENTS.length]
-  const initials = user.name.split(" ").slice(-2).map((p) => p[0]).join("").toUpperCase()
+  const idHash = user.id.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
+  const gradient = AVATAR_GRADIENTS[idHash % AVATAR_GRADIENTS.length]
+  const initials = user.name.split(" ").slice(-2).map((p: string) => p[0]).join("").toUpperCase()
 
   return (
     <>
@@ -129,7 +162,7 @@ export default function UserHistoryPage({ params }: { params: Promise<{ id: stri
                 <Mail className="size-4 text-primary/60 shrink-0" /> {user.email}
               </span>
               <span className="flex items-center gap-1 justify-center md:justify-start">
-                <Phone className="size-4 text-primary/60 shrink-0" /> {user.role === "Bác sĩ" ? "0901 111 222" : "0912 345 678"}
+                <Phone className="size-4 text-primary/60 shrink-0" /> {user.phone || "---"}
               </span>
               <span className="flex items-center gap-1 justify-center md:justify-start">
                 <Calendar className="size-4 text-primary/60 shrink-0" /> Tham gia: {user.joinDate}
